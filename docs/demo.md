@@ -83,11 +83,17 @@ Log in as **DevOps admin**:
 
 On a ready server, click **Decommission**. The worker runs `terraform destroy`, the status becomes **Deleted** and the quota is released.
 
+## 10. Leases
+
+In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When the server is ready, the detail page shows the expiry date and an **Extend lease by 30 days** button. The worker checks every minute and decommissions servers whose lease has ended, writing "Lease ended, decommissioning automatically" to the timeline.
+
+![Lease](screenshots/12-lease.png)
+
 ## What is real and what is simulated
 
 | Part | Status |
 |---|---|
-| UI, API, database, RBAC, quotas, approvals, audit log, queue and worker | Real |
+| UI, API, database, RBAC, quotas, approvals, audit log, leases, queue and worker | Real |
 | Terraform code generation | Real |
 | Running Terraform against Proxmox (`PROVISIONER=local`) | Real, needs Proxmox (for example in VirtualBox) |
 | AWS | Terraform generated and validated; apply disabled by default to avoid cost |

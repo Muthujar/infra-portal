@@ -20,6 +20,8 @@ A developer picks a server from a **service catalog** and fills in a short form.
 | Provisioners: mock, **real local Terraform**, GitLab CI pipeline | `backend/src/connectors/` |
 | Configurators: mock, AWX job template | `backend/src/connectors/` |
 | Retry failed requests, decommission (delete) servers | request detail page |
+| Lease / expiry: servers are decommissioned automatically when the lease ends, owners can extend | `backend/src/jobs.ts`, request form and detail page |
+| Automated tests (API, workflow, RBAC, quotas, leases) and CI | `backend/tests/`, `.github/workflows/ci.yml` |
 | Admin: edit quotas, enable/disable catalog items, audit log | `frontend/src/pages/AdminPage.tsx` |
 
 ## Tech stack
@@ -111,6 +113,7 @@ Set these in `backend/.env` and restart the API and worker.
 | `CONFIGURATOR` | `mock` (default) | Simulates an AWX job. |
 | | `awx` | Launches a real AWX job template and waits for it (see `ansible/configure-server.yml`). |
 | `AWS_APPLY_ENABLED` | `false` (default) | AWS requests run `terraform validate` only, so there is no cloud cost. |
+| `LEASE_CHECK_INTERVAL_MS` | `60000` (default) | How often the worker looks for servers whose lease has ended. |
 
 ## Using real Proxmox (PROVISIONER=local)
 
@@ -136,6 +139,33 @@ Proxmox VE can run inside VirtualBox on a laptop (16 GB+ RAM recommended).
 
 Terraform files and state are kept in `backend/terraform-runs/request-<id>/`.
 
+## Tests and CI
+
+The backend tests run the API and the worker's job functions against a real PostgreSQL database (no Redis needed).
+They use their own database, `infra_portal_test`, which is emptied and seeded at the start of every run.
+
+```bash
+docker compose up -d postgres
+docker compose exec postgres createdb -U portal infra_portal_test   # first time only
+cd backend
+npm test
+```
+
+To check a running portal end to end (needs `curl` and `jq`, e.g. Git Bash on Windows):
+
+```bash
+scripts/smoke-test.sh http://localhost:8080
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request:
+
+| Job | What it checks |
+|---|---|
+| backend | typecheck, all tests, build |
+| frontend | lint, build |
+| terraform | the generated Proxmox and AWS files pass `terraform fmt` and `terraform validate` with the real providers |
+| docker | `docker compose up --build`, then the smoke test through the web container |
+
 ## API overview
 
 All endpoints are under `/api` and need `Authorization: Bearer <token>` except login.
@@ -152,6 +182,7 @@ All endpoints are under `/api` and need `Authorization: Bearer <token>` except l
 | POST | `/requests` | logged in |
 | POST | `/requests/:id/approve`, `/reject` | approver (own team, not PROD), admin |
 | POST | `/requests/:id/retry`, `/decommission` | owner, team approver, admin |
+| POST | `/requests/:id/extend` `{ days }` | owner, team approver, admin |
 | GET | `/teams/quota` | logged in |
 | PUT | `/teams/:id/quota` | admin |
 | GET | `/audit` | admin |
@@ -161,6 +192,5 @@ All endpoints are under `/api` and need `Authorization: Bearer <token>` except l
 - Single sign-on with SAML / LDAP (for example Keycloak or Active Directory), mapping directory groups to roles
 - Remote Terraform state (GitLab or S3) instead of local folders
 - Secrets in a vault (HashiCorp Vault, AWS Secrets Manager)
-- Lease / expiry dates with automatic decommission
 - Notifications (email, Slack) on approval and completion
-- Automated tests in CI
+- Lease reminders by email before a server expires

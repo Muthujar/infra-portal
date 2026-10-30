@@ -18,11 +18,18 @@ Done and tested end to end in a browser (mock mode):
 
 Verified separately: the local Terraform runner calls the real `terraform` binary, and templates pass `terraform fmt`. A full `terraform apply` against Proxmox has **not** been run yet. It needs Muthu's Proxmox VM.
 
+Added later on 2026-10-30:
+- Lease / expiry: the request form asks for 7, 30 or 90 days (or no expiry); the worker decommissions expired servers every minute; owners can extend by 30 days
+- 29 automated tests (Vitest + Supertest) for the workflow, RBAC, validation, quotas and leases
+- GitHub Actions CI: backend tests, frontend lint/build, `terraform validate` of the generated files, and `docker compose up --build` with an end-to-end smoke test (`scripts/smoke-test.sh`)
+- Fix: "Retry" after a failed decommission now retries the delete instead of rebuilding the server
+- Windows + VirtualBox + Proxmox setup guide: https://claude.ai/artifact/Ar29rxL8GNWiyihP3LHUhs
+
 Not yet done:
-- `docker compose up --build` has not been tested (the build machine had no Docker daemon)
+- First green CI run confirms `docker compose up --build` and `terraform validate` (they could not run on the build machine)
 - Install Proxmox in VirtualBox on Muthu's Windows laptop (32 GB RAM) and test `PROVISIONER=local` for real (README section "Using real Proxmox")
 - Optional: deploy to Muthu's Hostinger VPS (8 GB) as a live URL in mock mode
-- Optional: SAML/LDAP via Keycloak, automated tests, lease/expiry
+- Optional: SAML/LDAP via Keycloak
 - Send the submission email to Vignesh with the repo link
 
 ## Known things to check on first real Proxmox run

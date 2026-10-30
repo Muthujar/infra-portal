@@ -70,7 +70,9 @@ export function ApprovalsPage() {
             <strong>{request.requester.name}</strong> wants a <strong>{request.catalogItem.name}</strong> ({request.platform},{" "}
             {request.cpu} CPU, {request.memoryMb} MB RAM, {request.diskGb} GB disk)
           </p>
-          <p className="muted">Reason: {request.justification}</p>
+          <p className="muted">
+            Reason: {request.justification} · Lease: {request.leaseDays ? request.leaseDays + " days" : "no expiry"}
+          </p>
           <input
             placeholder="Comment (required when rejecting)"
             value={comments[request.id] || ""}

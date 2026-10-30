@@ -6,10 +6,10 @@ import { config } from "../config";
 
 export const QUEUE_NAME = "provisioning";
 
-export type JobName = "provision" | "decommission";
+export type JobName = "provision" | "decommission" | "expire-leases";
 
 export interface JobData {
-  requestId: number;
+  requestId: number; // 0 for jobs that are not about one request (expire-leases)
 }
 
 // BullMQ needs host/port options; we read them from REDIS_URL.
@@ -37,4 +37,13 @@ export async function addJob(name: JobName, requestId: number) {
     removeOnComplete: 100, // keep the last 100 finished jobs for debugging
     removeOnFail: 100,
   });
+}
+
+// Adds the repeating "expire-leases" job. Safe to call on every worker start: it replaces the old schedule.
+export async function scheduleLeaseCheck() {
+  await getQueue().upsertJobScheduler(
+    "lease-check",
+    { every: config.leaseCheckIntervalMs },
+    { name: "expire-leases", data: { requestId: 0 }, opts: { removeOnComplete: 10, removeOnFail: 10 } }
+  );
 }

@@ -18,6 +18,7 @@ export function CatalogPage() {
   const [hostname, setHostname] = useState("");
   const [environment, setEnvironment] = useState<Environment>("DEV");
   const [justification, setJustification] = useState("");
+  const [leaseDays, setLeaseDays] = useState("30"); // "" means no expiry
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -42,6 +43,7 @@ export function CatalogPage() {
     setHostname("");
     setEnvironment("DEV");
     setJustification("");
+    setLeaseDays("30");
     setFormError("");
   }
 
@@ -58,6 +60,7 @@ export function CatalogPage() {
         hostname: hostname,
         environment: environment,
         justification: justification,
+        leaseDays: leaseDays === "" ? null : Number(leaseDays),
       });
       navigate("/requests/" + created.id);
     } catch (err) {
@@ -119,6 +122,17 @@ export function CatalogPage() {
                 <option value="QA">QA</option>
                 <option value="PROD">PROD (needs admin approval)</option>
               </select>
+            </label>
+
+            <label>
+              Lease
+              <select value={leaseDays} onChange={(e) => setLeaseDays(e.target.value)}>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+                <option value="">No expiry</option>
+              </select>
+              <small className="muted">The server is deleted automatically when the lease ends. You can extend it.</small>
             </label>
 
             <label>

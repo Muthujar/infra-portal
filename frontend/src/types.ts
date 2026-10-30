@@ -64,6 +64,8 @@ export interface ServerRequest {
   externalId: string | null;
   configJobId: string | null;
   errorMessage: string | null;
+  leaseDays: number | null;
+  expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
   catalogItem: { name: string; osName: string };

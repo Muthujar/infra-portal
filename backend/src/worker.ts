@@ -2,19 +2,26 @@
 // It takes jobs from the queue and does the slow work:
 //   provision:    APPROVED -> PROVISIONING -> CONFIGURING -> COMPLETED (or FAILED)
 //   decommission: DECOMMISSIONING -> DECOMMISSIONED (or FAILED)
+//   expire-leases: runs every minute and decommissions servers whose lease has ended
 
 import { Job, Worker } from "bullmq";
 import { prisma } from "./db";
 import { config } from "./config";
-import { decommission, provision } from "./jobs";
-import { getRedisConnection, JobData, QUEUE_NAME } from "./queue/queue";
+import { decommission, expireLeases, provision } from "./jobs";
+import { getRedisConnection, JobData, QUEUE_NAME, scheduleLeaseCheck } from "./queue/queue";
 
 async function handleJob(job: Job<JobData>) {
-  console.log("Job " + job.name + " for request #" + job.data.requestId);
   if (job.name === "provision") {
+    console.log("Job provision for request #" + job.data.requestId);
     await provision(job.data.requestId);
   } else if (job.name === "decommission") {
+    console.log("Job decommission for request #" + job.data.requestId);
     await decommission(job.data.requestId);
+  } else if (job.name === "expire-leases") {
+    const expired = await expireLeases();
+    if (expired.length > 0) {
+      console.log("Lease ended, decommissioned requests: " + expired.join(", "));
+    }
   } else {
     console.warn("Unknown job: " + job.name);
   }
@@ -27,6 +34,10 @@ const worker = new Worker<JobData>(QUEUE_NAME, handleJob, {
 
 worker.on("failed", (job, error) => {
   console.error("Job " + (job ? job.id : "?") + " crashed:", error);
+});
+
+scheduleLeaseCheck().catch((error) => {
+  console.error("Could not schedule the lease check:", error);
 });
 
 console.log(

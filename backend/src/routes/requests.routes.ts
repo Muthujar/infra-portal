@@ -12,6 +12,7 @@ import { writeAudit } from "../services/audit.service";
 import { changeStatus } from "../services/requestStatus.service";
 import { generateTerraform } from "../terraform/generator";
 import { addJob } from "../queue/queue";
+import { addDays } from "../jobs";
 
 export const requestsRouter = Router();
 
@@ -143,6 +144,8 @@ const createRequestSchema = z.object({
     .regex(/^[a-z][a-z0-9-]{2,29}$/, "use 3-30 lowercase letters, numbers or '-', starting with a letter"),
   environment: z.enum(["DEV", "QA", "PROD"]),
   justification: z.string().min(5, "please explain why you need this server").max(500),
+  // How many days the server may live; leave out (or null) for no expiry.
+  leaseDays: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 // POST /api/requests  ->  submit a new server request
@@ -182,6 +185,7 @@ requestsRouter.post(
         hostname: input.hostname,
         environment: input.environment,
         justification: input.justification,
+        leaseDays: input.leaseDays || null,
         platform: item.platform,
         cpu: item.cpu,
         memoryMb: item.memoryMb,
@@ -192,9 +196,14 @@ requestsRouter.post(
       },
     });
 
+    let leaseText = "";
+    if (request.leaseDays) {
+      leaseText = " (lease " + request.leaseDays + " days)";
+    }
     await writeAudit({
       action: "REQUEST_CREATED",
-      message: user.name + " requested " + item.name + " '" + request.hostname + "' for " + request.environment,
+      message:
+        user.name + " requested " + item.name + " '" + request.hostname + "' for " + request.environment + leaseText,
       requestId: request.id,
       actorId: user.id,
       toStatus: "PENDING_APPROVAL",
@@ -344,6 +353,40 @@ requestsRouter.post(
       message: "Decommission requested by " + user.name,
     });
     await addJob("decommission", request.id);
+    res.json(updated);
+  })
+);
+
+// POST /api/requests/:id/extend  { days }  ->  push the lease expiry date further out
+requestsRouter.post(
+  "/:id/extend",
+  asyncHandler(async (req, res) => {
+    const user = req.user!;
+    const input = z.object({ days: z.number().int().min(1).max(90) }).parse(req.body);
+    const request = await findRequestOr404(Number(req.params.id));
+    checkCanManage(user, request);
+
+    if (request.status !== "COMPLETED" || !request.expiresAt) {
+      throw new HttpError(409, "Only running servers with a lease can be extended");
+    }
+
+    // Count from the current expiry date, or from now if it is already in the past.
+    let start = request.expiresAt;
+    if (start.getTime() < Date.now()) {
+      start = new Date();
+    }
+    const newExpiry = addDays(start, input.days);
+
+    const updated = await prisma.request.update({
+      where: { id: request.id },
+      data: { expiresAt: newExpiry, leaseDays: (request.leaseDays || 0) + input.days },
+    });
+    await writeAudit({
+      action: "LEASE_EXTENDED",
+      message: "Lease extended by " + input.days + " days by " + user.name + ", now expires " + newExpiry.toISOString(),
+      requestId: request.id,
+      actorId: user.id,
+    });
     res.json(updated);
   })
 );
