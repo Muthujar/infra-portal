@@ -295,6 +295,22 @@ requestsRouter.post(
       throw new HttpError(409, "This request was never approved");
     }
 
+    // If the decommission step failed, retrying means trying the delete again (not building the server again).
+    const lastFailure = await prisma.auditEvent.findFirst({
+      where: { requestId: request.id, toStatus: "FAILED" },
+      orderBy: { id: "desc" },
+    });
+    if (lastFailure && lastFailure.fromStatus === "DECOMMISSIONING") {
+      const updated = await changeStatus({
+        requestId: request.id,
+        to: "DECOMMISSIONING",
+        actorId: user.id,
+        message: "Decommission retry requested by " + user.name,
+      });
+      await addJob("decommission", request.id);
+      return res.json(updated);
+    }
+
     // A failed request does not hold quota, so check it again before retrying.
     await assertQuotaAvailable(request.teamId, request, request.id);
 

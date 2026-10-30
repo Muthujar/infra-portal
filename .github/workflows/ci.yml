@@ -1,0 +1,106 @@
+# Checks every push and pull request:
+#   backend    typecheck, API tests (with PostgreSQL), build
+#   frontend   lint and build
+#   terraform  the generated .tf files pass `terraform validate` with the real providers
+#   docker     `docker compose up --build` works and a request goes all the way to COMPLETED
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: portal
+          POSTGRES_PASSWORD: portal
+          POSTGRES_DB: infra_portal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portal -d infra_portal_test"
+          --health-interval 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://portal:portal@localhost:5432/infra_portal_test
+      - run: npm run build
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Generate sample main.tf files from the templates
+        working-directory: backend
+        run: |
+          npm ci
+          npx tsx scripts/render-sample-terraform.ts ../terraform-check
+      - name: terraform fmt and validate
+        run: |
+          terraform fmt -check -recursive terraform-check
+          for folder in terraform-check/*; do
+            echo "== $folder"
+            terraform -chdir="$folder" init -backend=false -input=false -no-color
+            terraform -chdir="$folder" validate -no-color
+          done
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start everything
+        run: |
+          cp backend/.env.example backend/.env
+          sed -i "s/^MOCK_STEP_DELAY_MS=.*/MOCK_STEP_DELAY_MS=1000/" backend/.env
+          docker compose up --build -d
+      - name: Smoke test through the web container (port 8080)
+        run: scripts/smoke-test.sh http://localhost:8080
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop
+        if: always()
+        run: docker compose down -v
