@@ -1,0 +1,136 @@
+// Database schema for the Infrastructure Management Tool.
+// Run `npm run db:migrate` after changing this file.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// What a user is allowed to do (RBAC).
+enum Role {
+  REQUESTER // can browse the catalog and request servers
+  APPROVER  // can also approve or reject requests from their own team
+  ADMIN     // can do everything, including production approvals and quotas
+}
+
+// Where the server will be created.
+enum Platform {
+  PROXMOX
+  AWS
+}
+
+enum Environment {
+  DEV
+  QA
+  PROD
+}
+
+// The life cycle of a request. See docs/architecture.md for the diagram.
+enum RequestStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  PROVISIONING
+  CONFIGURING
+  COMPLETED
+  FAILED
+  DECOMMISSIONING
+  DECOMMISSIONED
+}
+
+model Team {
+  id            Int       @id @default(autoincrement())
+  name          String    @unique
+  // Quota: the maximum resources this team can hold at the same time.
+  cpuQuota      Int
+  memoryQuotaMb Int
+  diskQuotaGb   Int
+  users         User[]
+  requests      Request[]
+}
+
+model User {
+  id           Int     @id @default(autoincrement())
+  email        String  @unique
+  name         String
+  passwordHash String
+  role         Role    @default(REQUESTER)
+  teamId       Int
+  team         Team    @relation(fields: [teamId], references: [id])
+
+  requests     Request[]    @relation("RequestedBy")
+  approvals    Request[]    @relation("ApprovedBy")
+  auditEvents  AuditEvent[]
+  createdAt    DateTime     @default(now())
+}
+
+// One item in the service catalog, for example "Small Linux server".
+model CatalogItem {
+  id              Int       @id @default(autoincrement())
+  name            String
+  description     String
+  platform        Platform
+  osName          String    // shown to users, e.g. "Ubuntu 22.04"
+  cpu             Int
+  memoryMb        Int
+  diskGb          Int
+  awsInstanceType String?   // only used when platform is AWS
+  active          Boolean   @default(true)
+  requests        Request[]
+  createdAt       DateTime  @default(now())
+}
+
+// A request for one server. This is the heart of the application.
+model Request {
+  id              Int           @id @default(autoincrement())
+  hostname        String
+  environment     Environment
+  justification   String
+  status          RequestStatus @default(PENDING_APPROVAL)
+
+  // A copy of the size at request time, so later catalog changes do not affect it.
+  platform        Platform
+  cpu             Int
+  memoryMb        Int
+  diskGb          Int
+
+  catalogItemId   Int
+  catalogItem     CatalogItem   @relation(fields: [catalogItemId], references: [id])
+  requesterId     Int
+  requester       User          @relation("RequestedBy", fields: [requesterId], references: [id])
+  teamId          Int
+  team            Team          @relation(fields: [teamId], references: [id])
+
+  approverId      Int?
+  approver        User?         @relation("ApprovedBy", fields: [approverId], references: [id])
+  approvalComment String?
+
+  // Filled in during provisioning.
+  terraformCode   String?       // the generated main.tf
+  provisionLog    String?       // output of Terraform / pipeline
+  externalId      String?       // e.g. Proxmox container id or GitLab pipeline id
+  configJobId     String?       // AWX job id
+  errorMessage    String?
+
+  auditEvents     AuditEvent[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// Every important action is written here (who did what, and when).
+model AuditEvent {
+  id         Int            @id @default(autoincrement())
+  action     String         // e.g. REQUEST_CREATED, REQUEST_APPROVED, STATUS_CHANGED
+  message    String
+  fromStatus RequestStatus?
+  toStatus   RequestStatus?
+  requestId  Int?
+  request    Request?       @relation(fields: [requestId], references: [id])
+  actorId    Int?           // empty when the system (worker) did it
+  actor      User?          @relation(fields: [actorId], references: [id])
+  createdAt  DateTime       @default(now())
+}
