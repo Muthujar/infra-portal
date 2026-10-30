@@ -1,0 +1,47 @@
+# Sample Ansible playbook for the AWX job template (CONFIGURATOR=awx).
+# AWX runs this after Terraform has created the server.
+# The portal passes: target_hostname, request_id, target_environment (as extra_vars).
+#
+# In AWX: create a Project pointing to this repo, an Inventory with your servers,
+# and a Job Template that uses this playbook with "Prompt on launch" enabled
+# for Limit and Extra Variables. Put its id in AWX_JOB_TEMPLATE_ID.
+
+- name: Configure new server
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - ufw
+        state: present
+
+    - name: Create the app user
+      ansible.builtin.user:
+        name: app
+        shell: /bin/bash
+        create_home: true
+
+    - name: Allow SSH through the firewall
+      community.general.ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: Enable the firewall
+      community.general.ufw:
+        state: enabled
+
+    - name: Write a message of the day
+      ansible.builtin.copy:
+        dest: /etc/motd
+        content: |
+          {{ target_hostname | default(inventory_hostname) }} ({{ target_environment | default('DEV') }})
+          Created by Infra Portal, request #{{ request_id | default('?') }}

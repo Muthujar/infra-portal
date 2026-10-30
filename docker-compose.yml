@@ -1,0 +1,67 @@
+# Starts the whole system:  docker compose up --build
+# Open http://localhost:8080 and log in with a demo user (see README).
+#
+# For local development you can also start only the databases:
+#   docker compose up -d postgres redis
+# and run backend/frontend with npm (see README).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal
+      POSTGRES_DB: infra_portal
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d infra_portal"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://portal:portal@postgres:5432/infra_portal
+      REDIS_URL: redis://redis:6379
+    # Create tables and demo data, then start the API
+    command: sh -c "npx prisma migrate deploy && npx tsx prisma/seed.ts && node dist/server.js"
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://portal:portal@postgres:5432/infra_portal
+      REDIS_URL: redis://redis:6379
+      TERRAFORM_WORKDIR: /app/terraform-runs
+    command: node dist/worker.js
+    volumes:
+      - terraform-runs:/app/terraform-runs # keeps Terraform state between restarts
+    depends_on:
+      - api
+
+  web:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  terraform-runs:

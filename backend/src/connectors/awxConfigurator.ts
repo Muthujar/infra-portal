@@ -35,7 +35,7 @@ export class AwxConfigurator implements Configurator {
       extra_vars: {
         target_hostname: request.hostname,
         request_id: request.id,
-        environment: request.environment,
+        target_environment: request.environment,
       },
     });
     if (!launch.ok) {
