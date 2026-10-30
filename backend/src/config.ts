@@ -61,6 +61,8 @@ export const config = {
     token: readString("GITLAB_TOKEN", ""),
     projectId: readString("GITLAB_PROJECT_ID", ""),
     branch: readString("GITLAB_BRANCH", "main"),
+    // How often the worker asks GitLab whether the pipeline has finished
+    pollIntervalMs: readNumber("GITLAB_POLL_INTERVAL_MS", 5000),
   },
 
   awx: {

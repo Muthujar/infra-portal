@@ -7,10 +7,10 @@ Repository: https://github.com/Muthujar/infra-portal
 |---|---|
 | Source code | This repository: [`backend/`](backend/) (API + worker), [`frontend/`](frontend/) (React UI), [`docker-compose.yml`](docker-compose.yml), Terraform templates in [`backend/terraform-templates/`](backend/terraform-templates/), samples in [`gitlab/`](gitlab/) and [`ansible/`](ansible/) |
 | Architecture diagram | [`docs/architecture.md`](docs/architecture.md) (system overview, request life cycle, sequence, data model, security rules). Image files: [`docs/diagrams/`](docs/diagrams/) |
-| Setup instructions | [`README.md`](README.md) (quick start with Docker, local development, modes, tests). Windows + Proxmox in VirtualBox: [`docs/setup-windows-proxmox.md`](docs/setup-windows-proxmox.md) |
+| Setup instructions | [`README.md`](README.md) (quick start with Docker, local development, modes, tests). Windows + Proxmox in VirtualBox: [`docs/setup-windows-proxmox.md`](docs/setup-windows-proxmox.md). GitLab CI provisioning: [`docs/setup-gitlab.md`](docs/setup-gitlab.md) |
 | Demo document | [`docs/demo.md`](docs/demo.md) (step-by-step walkthrough with screenshots in [`docs/screenshots/`](docs/screenshots/)) |
 | Presentation | [`docs/Infra-Portal-Presentation.pdf`](docs/Infra-Portal-Presentation.pdf) (11 slides; source: [`docs/presentation/slides.html`](docs/presentation/slides.html)) |
-| Tests and CI | [`backend/tests/`](backend/tests/) (29 tests) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Tests and CI | [`backend/tests/`](backend/tests/) (34 tests) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 
 ## Run it in one command
 
@@ -35,9 +35,10 @@ The app starts in mock mode, so it runs on any machine. See the README for switc
 - Request state machine with a full audit trail
 - Terraform (HCL) generation from templates, shown on each request
 - Background worker with a Redis + BullMQ queue; live status in the UI
-- Provisioners: mock, real local Terraform (Proxmox / AWS), GitLab CI pipeline
+- Provisioners: mock, real local Terraform (Proxmox / AWS), GitLab CI pipeline (commit `main.tf`, run the pipeline on a self-hosted runner, copy the Terraform output back)
+- Setup check script that tests the Proxmox and GitLab settings before a real run
 - Configurators: mock, AWX job template (Ansible)
 - Retry failed requests, decommission servers
 - Server leases with automatic decommission and extension
 - Admin: edit quotas, enable or disable catalog items, read the audit log
-- 29 automated tests and a 4-job GitHub Actions pipeline (tests, lint, `terraform validate`, Docker smoke test)
+- 34 automated tests and a 4-job GitHub Actions pipeline (tests, lint, `terraform validate`, Docker smoke test)

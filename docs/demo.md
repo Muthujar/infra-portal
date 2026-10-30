@@ -104,7 +104,7 @@ In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When t
 
 ## Quality: tests and CI
 
-- **29 automated tests** (Vitest + Supertest) cover the full request life cycle, the approval rules, input validation, quotas and leases. They run against a real PostgreSQL database.
+- **34 automated tests** (Vitest + Supertest) cover the full request life cycle, the approval rules, input validation, quotas, leases, and the GitLab connector against a fake GitLab API. They run against a real PostgreSQL database.
 - **GitHub Actions** runs on every push: backend typecheck, tests and build; frontend lint and build; `terraform fmt` and `terraform validate` on the generated Proxmox and AWS files; and `docker compose up --build` followed by `scripts/smoke-test.sh`, which takes one request all the way to Ready.
 
 ## Key design decisions

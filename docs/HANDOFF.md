@@ -12,7 +12,7 @@ Context for anyone (or any Claude project) continuing this work.
 
 Done and tested end to end in a browser (mock mode):
 - Backend API, worker, Prisma schema + seed, Terraform templates and generator
-- Connectors: mock, local Terraform, GitLab (untested against real GitLab), AWX (untested against real AWX)
+- Connectors: mock, local Terraform, GitLab (tested against a fake GitLab API; real gitlab.com run pending), AWX (untested against real AWX, kept as mock on purpose: a real AWX needs Kubernetes)
 - React UI: login, catalog, request form, requests list, request detail (live), approvals, admin
 - README, architecture diagrams (Mermaid), demo guide, screenshots
 
@@ -20,7 +20,7 @@ Verified separately: the local Terraform runner calls the real `terraform` binar
 
 Added later on 2026-10-30:
 - Lease / expiry: the request form asks for 7, 30 or 90 days (or no expiry); the worker decommissions expired servers every minute; owners can extend by 30 days
-- 29 automated tests (Vitest + Supertest) for the workflow, RBAC, validation, quotas and leases
+- 34 automated tests (Vitest + Supertest) for the workflow, RBAC, validation, quotas, leases and the GitLab connector (against a fake GitLab API)
 - GitHub Actions CI: backend tests, frontend lint/build, `terraform validate` of the generated files, and `docker compose up --build` with an end-to-end smoke test (`scripts/smoke-test.sh`)
 - Fix: "Retry" after a failed decommission now retries the delete instead of rebuilding the server
 - Windows + VirtualBox + Proxmox setup guide: docs/setup-windows-proxmox.md

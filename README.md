@@ -44,6 +44,7 @@ See [docs/architecture.md](docs/architecture.md) for the architecture diagram an
 | [docs/demo.md](docs/demo.md) | Step-by-step demo with screenshots |
 | [docs/Infra-Portal-Presentation.pdf](docs/Infra-Portal-Presentation.pdf) | 11-slide presentation |
 | [docs/setup-windows-proxmox.md](docs/setup-windows-proxmox.md) | Windows setup with Proxmox VE in VirtualBox |
+| [docs/setup-gitlab.md](docs/setup-gitlab.md) | Provisioning through a GitLab CI pipeline, with a runner on your laptop |
 
 ## Repository layout
 
@@ -58,7 +59,8 @@ infra-portal/
     src/worker.ts          background job processor
     terraform-templates/   .tf templates with {{placeholders}}
   frontend/                React app
-  gitlab/.gitlab-ci.yml    sample pipeline for PROVISIONER=gitlab
+  gitlab/.gitlab-ci.yml    pipeline for PROVISIONER=gitlab
+  gitlab/runner/           GitLab Runner for your own machine (reaches Proxmox on your network)
   ansible/                 sample playbook for the AWX job template
   docs/                    architecture, demo guide, screenshots
   docker-compose.yml       runs everything
@@ -119,7 +121,7 @@ Set these in `backend/.env` and restart the API and worker.
 |---|---|---|
 | `PROVISIONER` | `mock` (default) | Simulates Terraform with a short delay. A hostname containing `fail` simulates a failure. |
 | | `local` | Runs the real `terraform init/apply/destroy` on the worker machine, one folder per request. |
-| | `gitlab` | Commits `main.tf` to a GitLab repo and runs a pipeline (see `gitlab/.gitlab-ci.yml`). |
+| | `gitlab` | Commits `main.tf` to a GitLab repo, runs a pipeline and copies its Terraform output back. Setup: [docs/setup-gitlab.md](docs/setup-gitlab.md). |
 | `CONFIGURATOR` | `mock` (default) | Simulates an AWX job. |
 | | `awx` | Launches a real AWX job template and waits for it (see `ansible/configure-server.yml`). |
 | `AWS_APPLY_ENABLED` | `false` (default) | AWS requests run `terraform validate` only, so there is no cloud cost. |
@@ -148,6 +150,13 @@ Proxmox VE can run inside VirtualBox on a laptop (16 GB+ RAM recommended). For a
 8. Restart the worker, then request a Proxmox server and approve it. The container appears in the Proxmox UI. Decommission it from the portal to delete it.
 
 Terraform files and state are kept in `backend/terraform-runs/request-<id>/`.
+
+Before approving a real request, check the settings against Proxmox (and GitLab, with `PROVISIONER=gitlab`).
+It only reads, and prints what to fix:
+
+```bash
+docker compose run --rm api npx tsx scripts/check-setup.ts
+```
 
 ## Tests and CI
 
