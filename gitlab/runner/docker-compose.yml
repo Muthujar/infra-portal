@@ -1,0 +1,20 @@
+# A GitLab Runner on your own machine, so pipeline jobs can reach Proxmox on your home network.
+# Setup guide: docs/setup-gitlab.md
+#
+# 1. Register it once (replace the token with the one from GitLab > Settings > CI/CD > Runners > New project runner):
+#      docker compose -f gitlab/runner/docker-compose.yml run --rm runner register --non-interactive --url https://gitlab.com --token glrt-XXXX --executor docker --docker-image alpine:3.20
+# 2. Start it:
+#      docker compose -f gitlab/runner/docker-compose.yml up -d
+#
+# Each pipeline job then runs in its own Docker container on this machine.
+
+services:
+  runner:
+    image: gitlab/gitlab-runner:v17.11.1
+    restart: unless-stopped
+    volumes:
+      - runner-config:/etc/gitlab-runner          # keeps the registration between restarts
+      - /var/run/docker.sock:/var/run/docker.sock # lets the runner start job containers
+
+volumes:
+  runner-config:

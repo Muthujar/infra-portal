@@ -1,13 +1,13 @@
-# Sample pipeline for PROVISIONER=gitlab.
-# Put this file at the root of a separate GitLab project (the "infrastructure" repo).
+# Pipeline for PROVISIONER=gitlab. Setup guide: docs/setup-gitlab.md
+# Copy this file to the root of a separate GitLab project (the "infrastructure" repo).
 # The portal commits requests/request-<id>/main.tf to that repo and starts this pipeline
-# with the variables REQUEST_ID and TF_ACTION (apply or destroy).
+# with the variables REQUEST_ID and TF_ACTION (apply, destroy or validate).
 #
 # Add these CI/CD variables in GitLab (Settings > CI/CD > Variables, masked):
 #   TF_VAR_proxmox_endpoint, TF_VAR_proxmox_api_token, TF_VAR_container_password
 #
-# Note: gitlab.com shared runners cannot reach a Proxmox server on your home network.
-# Register a GitLab Runner on the same network as Proxmox (e.g. your laptop).
+# gitlab.com's shared runners cannot reach a Proxmox server on your home network, so the job
+# runs on your own runner (tag "infra-portal"), started with gitlab/runner/docker-compose.yml.
 #
 # Terraform state is stored in GitLab's built-in Terraform state backend,
 # one state per request, so "destroy" later finds the right server.
@@ -20,16 +20,19 @@ terraform:
   image:
     name: hashicorp/terraform:1.9
     entrypoint: [""]
+  tags:
+    - infra-portal
   rules:
     - if: '$CI_PIPELINE_SOURCE == "api" && $REQUEST_ID'
   variables:
+    TF_IN_AUTOMATION: "true"
     STATE_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/request-${REQUEST_ID}"
   script:
     - cd "requests/request-${REQUEST_ID}"
     # Tell Terraform to keep its state in GitLab (an "override" file adds this without editing main.tf)
     - echo 'terraform { backend "http" {} }' > backend_override.tf
     - >
-      terraform init -input=false
+      terraform init -input=false -no-color
       -backend-config="address=${STATE_URL}"
       -backend-config="lock_address=${STATE_URL}/lock"
       -backend-config="unlock_address=${STATE_URL}/lock"
@@ -40,7 +43,9 @@ terraform:
       -backend-config="retry_wait_min=5"
     - |
       if [ "$TF_ACTION" = "destroy" ]; then
-        terraform destroy -auto-approve -input=false
+        terraform destroy -auto-approve -input=false -no-color
+      elif [ "$TF_ACTION" = "validate" ]; then
+        terraform validate -no-color
       else
-        terraform apply -auto-approve -input=false
+        terraform apply -auto-approve -input=false -no-color
       fi
