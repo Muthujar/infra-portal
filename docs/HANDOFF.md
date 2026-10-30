@@ -23,10 +23,10 @@ Added later on 2026-10-30:
 - 29 automated tests (Vitest + Supertest) for the workflow, RBAC, validation, quotas and leases
 - GitHub Actions CI: backend tests, frontend lint/build, `terraform validate` of the generated files, and `docker compose up --build` with an end-to-end smoke test (`scripts/smoke-test.sh`)
 - Fix: "Retry" after a failed decommission now retries the delete instead of rebuilding the server
-- Windows + VirtualBox + Proxmox setup guide: https://claude.ai/artifact/Ar29rxL8GNWiyihP3LHUhs
+- Windows + VirtualBox + Proxmox setup guide: docs/setup-windows-proxmox.md
+- Submission package: SUBMISSION.md, rendered diagrams in docs/diagrams/, refreshed screenshots, 11-slide docs/Infra-Portal-Presentation.pdf
 
 Not yet done:
-- First green CI run confirms `docker compose up --build` and `terraform validate` (they could not run on the build machine)
 - Install Proxmox in VirtualBox on Muthu's Windows laptop (32 GB RAM) and test `PROVISIONER=local` for real (README section "Using real Proxmox")
 - Optional: deploy to Muthu's Hostinger VPS (8 GB) as a live URL in mock mode
 - Optional: SAML/LDAP via Keycloak

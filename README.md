@@ -35,6 +35,16 @@ A developer picks a server from a **service catalog** and fills in a short form.
 
 See [docs/architecture.md](docs/architecture.md) for the architecture diagram and request life cycle.
 
+## Documents
+
+| Document | What it is |
+|---|---|
+| [SUBMISSION.md](SUBMISSION.md) | One-page index of the deliverables |
+| [docs/architecture.md](docs/architecture.md) | Architecture, request life cycle, sequence, data model, security rules ([images](docs/diagrams/)) |
+| [docs/demo.md](docs/demo.md) | Step-by-step demo with screenshots |
+| [docs/Infra-Portal-Presentation.pdf](docs/Infra-Portal-Presentation.pdf) | 11-slide presentation |
+| [docs/setup-windows-proxmox.md](docs/setup-windows-proxmox.md) | Windows setup with Proxmox VE in VirtualBox |
+
 ## Repository layout
 
 ```
@@ -117,7 +127,7 @@ Set these in `backend/.env` and restart the API and worker.
 
 ## Using real Proxmox (PROVISIONER=local)
 
-Proxmox VE can run inside VirtualBox on a laptop (16 GB+ RAM recommended).
+Proxmox VE can run inside VirtualBox on a laptop (16 GB+ RAM recommended). For a detailed Windows walkthrough with troubleshooting, see [docs/setup-windows-proxmox.md](docs/setup-windows-proxmox.md).
 
 1. Enable virtualization (Intel VT-x / AMD-V) in the BIOS.
 2. Create a VirtualBox VM: 8 GB RAM, 2-4 CPUs, 64 GB disk, network adapter in **Bridged** mode. Install Proxmox VE from the official ISO.

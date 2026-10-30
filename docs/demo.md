@@ -25,7 +25,7 @@ Three demo users show the three roles (RBAC): developer, team lead and DevOps ad
 
 ![Request form](screenshots/03-request-form.png)
 
-Click **Request** on *Medium Linux Server*, enter hostname `billing-api-01`, choose **DEV**, and give a reason.
+Click **Request** on *Small Linux Server*, enter hostname `billing-api-01`, choose **DEV**, keep the **30 day lease**, and give a reason.
 The API validates the hostname, checks that it is not already in use, and checks the team quota.
 
 ![Pending](screenshots/04-request-pending.png)
@@ -43,7 +43,8 @@ Request two *Database Servers*. The second one is blocked before it reaches anyo
 Log out and click **Team lead (approver)**, then open **Approvals**.
 
 - The lead sees only their team's DEV/QA requests.
-- The PROD database request is **not** shown, because production needs an admin.
+- PROD requests are **not** shown to the lead, because production needs an admin.
+- Each card shows the size, the reason and the lease the requester asked for.
 - Click **Approve**. At this moment the API generates the Terraform code and puts a job on the queue.
 
 ## 6. Watch it being created
@@ -101,6 +102,11 @@ In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When t
 | AWX (`CONFIGURATOR=awx`) | Real API code and sample playbook; mock used in the demo |
 | SAML / LDAP login | Not built; local JWT login with roles. Next step: Keycloak or Active Directory groups mapped to roles |
 
+## Quality: tests and CI
+
+- **29 automated tests** (Vitest + Supertest) cover the full request life cycle, the approval rules, input validation, quotas and leases. They run against a real PostgreSQL database.
+- **GitHub Actions** runs on every push: backend typecheck, tests and build; frontend lint and build; `terraform fmt` and `terraform validate` on the generated Proxmox and AWS files; and `docker compose up --build` followed by `scripts/smoke-test.sh`, which takes one request all the way to Ready.
+
 ## Key design decisions
 
 1. **Queue + worker.** Provisioning takes minutes, so the API only records the decision and queues a job. The UI polls for status. If the worker restarts, jobs are still in Redis.
@@ -108,3 +114,4 @@ In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When t
 3. **Connector interfaces.** Mock and real implementations share the same interface, so the demo runs anywhere and production only needs configuration.
 4. **Generated, reviewable Terraform.** The approver's decision and the exact code are saved together, so you can always see what was built.
 5. **Secrets stay out of code.** Credentials are passed to Terraform as environment variables, never written to `main.tf` or the database.
+6. **Leases.** Every server can have an end date, so test servers do not live forever. The worker cleans them up automatically, and owners can extend a lease.

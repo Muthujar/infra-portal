@@ -1,0 +1,193 @@
+<!doctype html>
+<!-- Source of docs/Infra-Portal-Presentation.pdf. Open in a browser to present, or print to PDF (16:9, no margins). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Infra Portal: presentation</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; }
+  :root { --ink: #172033; --muted: #5b667a; --accent: #2f5bea; --soft: #e9eefc; --line: #dbe1ea; --ok: #1d7a4a; --okbg: #e3f4ea; --warn: #9a5b00; --warnbg: #fbf0dc; }
+  body { margin: 0; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: var(--ink); background: #fff; }
+  .slide { width: 1280px; height: 720px; padding: 56px 72px; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; gap: 22px; }
+  .slide:last-child { page-break-after: auto; }
+  .slide::after { content: attr(data-n); position: absolute; right: 40px; bottom: 28px; font-size: 14px; color: var(--muted); }
+  .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: var(--accent); }
+  .eyebrow { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-size: 58px; margin: 0; line-height: 1.1; }
+  h2 { font-size: 38px; margin: 0; line-height: 1.15; }
+  p, li { font-size: 22px; line-height: 1.45; }
+  p { margin: 0; }
+  ul { margin: 0; padding-left: 26px; display: grid; gap: 10px; }
+  .muted { color: var(--muted); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; flex: 1; min-height: 0; }
+  .shot { border: 1px solid var(--line); border-radius: 10px; width: 100%; box-shadow: 0 8px 24px rgba(15,23,41,.12); }
+  figure { margin: 0; display: grid; gap: 8px; align-content: start; }
+  figcaption { font-size: 16px; color: var(--muted); }
+  .center { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .center img { max-width: 100%; max-height: 100%; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .step { background: var(--soft); border-radius: 12px; padding: 22px; display: grid; gap: 8px; align-content: start; }
+  .step b { font-size: 15px; color: var(--accent); letter-spacing: .06em; }
+  .step h3 { margin: 0; font-size: 24px; }
+  .step p { font-size: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 19px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .pill { display: inline-block; font-size: 15px; font-weight: 600; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+  .real { color: var(--ok); background: var(--okbg); }
+  .sim { color: var(--warn); background: var(--warnbg); }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; display: grid; gap: 6px; align-content: start; }
+  .card h3 { margin: 0; font-size: 22px; }
+  .card p { font-size: 17px; }
+  .title { justify-content: center; background: #0f1729; color: #fff; }
+  .title .muted { color: #aab6d3; }
+  .title .eyebrow { color: #8fa8ff; }
+</style>
+</head>
+<body>
+
+<section class="slide title" data-n="">
+  <span class="eyebrow">Kripya technical evaluation · Infrastructure Management Tool</span>
+  <h1>Infra Portal</h1>
+  <p style="font-size:28px">A self-service portal for requesting servers on Proxmox VE and AWS</p>
+  <p class="muted">Muthu · October 2026 · github.com/Muthujar/infra-portal</p>
+</section>
+
+<section class="slide" data-n="2">
+  <div class="bar"></div>
+  <span class="eyebrow">The problem</span>
+  <h2>Getting a server today means a ticket and a wait</h2>
+  <ul>
+    <li>A developer raises a ticket and waits days for the DevOps team.</li>
+    <li>Servers are built by hand, so no two are quite the same.</li>
+    <li>There is no single record of who asked for what, who approved it, and what was built.</li>
+    <li>Test servers are forgotten and keep using capacity.</li>
+  </ul>
+  <p style="margin-top:12px"><b>Goal:</b> a catalog, an approval step and automation, in the spirit of VMware vRealize Automation (Aria).</p>
+</section>
+
+<section class="slide" data-n="3">
+  <div class="bar"></div>
+  <span class="eyebrow">The solution</span>
+  <h2>Four steps from request to ready server</h2>
+  <div class="steps">
+    <div class="step"><b>1 · DEVELOPER</b><h3>Request</h3><p>Picks a server from the catalog, names it, chooses DEV / QA / PROD and a lease.</p></div>
+    <div class="step"><b>2 · API</b><h3>Check</h3><p>Validates input, checks the team quota and saves the request with an audit entry.</p></div>
+    <div class="step"><b>3 · TEAM LEAD</b><h3>Approve</h3><p>Approves DEV/QA for the team. PROD needs an admin. Terraform code is generated.</p></div>
+    <div class="step"><b>4 · WORKER</b><h3>Build</h3><p>Runs Terraform, then the AWX (Ansible) job. The UI shows every status live.</p></div>
+  </div>
+  <p class="muted">Every change is recorded in the audit log. Servers with a lease are deleted automatically when it ends.</p>
+</section>
+
+<section class="slide" data-n="4">
+  <div class="bar"></div>
+  <span class="eyebrow">Architecture</span>
+  <h2>API, queue and worker keep slow work out of the web request</h2>
+  <div class="center"><img src="../diagrams/system-overview.png" alt="System overview"></div>
+  <p class="muted" style="font-size:17px">React UI · Node.js + Express API · PostgreSQL (Prisma) · Redis + BullMQ queue · worker with pluggable provisioner (mock / local Terraform / GitLab CI) and configurator (mock / AWX)</p>
+</section>
+
+<section class="slide" data-n="5">
+  <div class="bar"></div>
+  <span class="eyebrow">Request life cycle</span>
+  <h2>One state machine controls every status change</h2>
+  <div class="cols" style="grid-template-columns: 1.25fr 1fr;">
+    <div class="center"><img src="../diagrams/request-lifecycle.png" alt="Request state machine"></div>
+    <ul style="align-content:center">
+      <li>Only allowed moves are accepted. A rejected request can never be built.</li>
+      <li>The update succeeds only if the status has not changed meanwhile, so two approvers or two workers cannot act at once.</li>
+      <li>Each change writes who, when, from and to into the audit log.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-n="6">
+  <div class="bar"></div>
+  <span class="eyebrow">Demo · request and approve</span>
+  <h2>Catalog with team quota, and the approval queue</h2>
+  <div class="cols">
+    <figure><img class="shot" src="../screenshots/02-catalog.png" alt=""><figcaption>Developer: catalog and remaining team quota</figcaption></figure>
+    <figure><img class="shot" src="../screenshots/06-approvals.png" alt=""><figcaption>Team lead: approve or reject with a comment</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide" data-n="7">
+  <div class="bar"></div>
+  <span class="eyebrow">Demo · provisioning</span>
+  <h2>Live status, timeline and the generated Terraform</h2>
+  <div class="cols">
+    <figure><img class="shot" src="../screenshots/07-provisioning.png" alt=""><figcaption>Creating the server: progress bar, timeline, main.tf</figcaption></figure>
+    <figure><img class="shot" src="../screenshots/09-failed.png" alt=""><figcaption>Failure path: error, log, Retry and Decommission</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide" data-n="8">
+  <div class="bar"></div>
+  <span class="eyebrow">Governance</span>
+  <h2>Who can do what, and what it costs</h2>
+  <div class="grid3">
+    <div class="card"><h3>Roles (RBAC)</h3><p>Requester, approver, admin. Nobody approves their own request. PROD needs an admin. Requesters see only their own requests.</p></div>
+    <div class="card"><h3>Team quotas</h3><p>CPU, RAM and disk limits per team, checked on request, on approval and on retry. Admins edit them.</p></div>
+    <div class="card"><h3>Audit log</h3><p>Every action with actor, time and status change. Visible on each request and in full to admins.</p></div>
+    <div class="card"><h3>Leases</h3><p>7, 30 or 90 days or no expiry. The worker deletes expired servers every minute; owners can extend.</p></div>
+    <div class="card"><h3>Secrets</h3><p>Proxmox and AWS credentials go to Terraform as environment variables, never into main.tf or the database.</p></div>
+    <div class="card"><h3>Validation</h3><p>Every input is checked with Zod: hostname format, unique names, sizes, comments.</p></div>
+  </div>
+</section>
+
+<section class="slide" data-n="9">
+  <div class="bar"></div>
+  <span class="eyebrow">Honest scope</span>
+  <h2>What is real and what is simulated</h2>
+  <table>
+    <thead><tr><th>Part</th><th>Status</th><th>Switch</th></tr></thead>
+    <tbody>
+      <tr><td>UI, API, database, RBAC, quotas, approvals, leases, audit, queue, worker</td><td><span class="pill real">Real</span></td><td class="muted">always on</td></tr>
+      <tr><td>Terraform generation (Proxmox LXC, AWS EC2)</td><td><span class="pill real">Real</span></td><td class="muted">validated in CI</td></tr>
+      <tr><td>Creating containers in Proxmox VE</td><td><span class="pill real">Real</span></td><td class="muted">PROVISIONER=local</td></tr>
+      <tr><td>AWS EC2 apply</td><td><span class="pill sim">Validate only</span></td><td class="muted">AWS_APPLY_ENABLED=true</td></tr>
+      <tr><td>GitLab CI pipeline</td><td><span class="pill sim">Mock in demo</span></td><td class="muted">PROVISIONER=gitlab</td></tr>
+      <tr><td>AWX / Ansible job</td><td><span class="pill sim">Mock in demo</span></td><td class="muted">CONFIGURATOR=awx</td></tr>
+      <tr><td>SAML / LDAP login</td><td><span class="pill sim">Not built</span></td><td class="muted">next step: Keycloak</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="slide" data-n="10">
+  <div class="bar"></div>
+  <span class="eyebrow">Quality</span>
+  <h2>Tested and checked on every push</h2>
+  <div class="cols">
+    <ul>
+      <li><b>29 automated tests</b> (Vitest + Supertest) on a real PostgreSQL database</li>
+      <li>Full life cycle, approval rules, validation, quotas, leases, state machine, Terraform generator</li>
+      <li>Connector pattern: the same tests run the worker steps with the mock provisioner</li>
+    </ul>
+    <ul>
+      <li><b>GitHub Actions CI</b>, four jobs:</li>
+      <li>backend: typecheck, tests, build</li>
+      <li>frontend: lint, build</li>
+      <li>terraform: fmt + validate of the generated files</li>
+      <li>docker: compose up, then a smoke test drives a request to Ready</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-n="11">
+  <div class="bar"></div>
+  <span class="eyebrow">Next steps for production</span>
+  <h2>From prototype to a real platform</h2>
+  <ul>
+    <li>Single sign-on with SAML / LDAP (Keycloak or Active Directory), directory groups mapped to roles</li>
+    <li>Remote Terraform state (GitLab or S3) instead of local folders</li>
+    <li>Secrets in a vault (HashiCorp Vault, AWS Secrets Manager)</li>
+    <li>Email or Slack notifications on approval, completion and before a lease ends</li>
+    <li>Run the real GitLab pipeline and AWX job template against the company's own instances</li>
+  </ul>
+  <p class="muted" style="margin-top:auto">Setup and demo: README.md · docs/setup-windows-proxmox.md · docs/demo.md · docs/architecture.md</p>
+</section>
+
+</body>
+</html>
