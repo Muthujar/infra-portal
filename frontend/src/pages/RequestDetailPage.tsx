@@ -38,6 +38,16 @@ export function RequestDetailPage() {
     return () => window.clearTimeout(timer);
   }, [requestId, reloadCounter]);
 
+  async function extendLease() {
+    setActionError("");
+    try {
+      await api("/requests/" + requestId + "/extend", "POST", { days: 30 });
+      setReloadCounter(reloadCounter + 1);
+    } catch (err) {
+      setActionError((err as Error).message);
+    }
+  }
+
   async function runAction(action: "retry" | "decommission") {
     if (action === "decommission") {
       const sure = window.confirm("Delete this server? This cannot be undone.");
@@ -69,6 +79,14 @@ export function RequestDetailPage() {
 
   const canRetry = request.status === "FAILED";
   const canDecommission = request.status === "COMPLETED" || request.status === "FAILED";
+  const canExtend = request.status === "COMPLETED" && request.expiresAt !== null;
+
+  let leaseText = "No expiry";
+  if (request.expiresAt) {
+    leaseText = "Expires " + new Date(request.expiresAt).toLocaleString();
+  } else if (request.leaseDays) {
+    leaseText = request.leaseDays + " days, starts when the server is ready";
+  }
 
   return (
     <div>
@@ -104,6 +122,11 @@ export function RequestDetailPage() {
 
       <div className="actions">
         {canRetry && <button onClick={() => runAction("retry")}>Retry</button>}
+        {canExtend && (
+          <button className="secondary" onClick={extendLease}>
+            Extend lease by 30 days
+          </button>
+        )}
         {canDecommission && (
           <button className="danger" onClick={() => runAction("decommission")}>
             Decommission (delete server)
@@ -138,6 +161,8 @@ export function RequestDetailPage() {
               {request.approver ? request.approver.name : "-"}
               {request.approvalComment ? ' ("' + request.approvalComment + '")' : ""}
             </dd>
+            <dt>Lease</dt>
+            <dd>{leaseText}</dd>
             <dt>Server id</dt>
             <dd>{request.externalId || "-"}</dd>
             <dt>AWX job</dt>

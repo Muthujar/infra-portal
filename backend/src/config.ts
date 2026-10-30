@@ -30,6 +30,8 @@ export const config = {
   provisioner: readString("PROVISIONER", "mock"), // mock | local | gitlab
   configurator: readString("CONFIGURATOR", "mock"), // mock | awx
   mockStepDelayMs: readNumber("MOCK_STEP_DELAY_MS", 4000),
+  // How often the worker looks for servers whose lease has ended
+  leaseCheckIntervalMs: readNumber("LEASE_CHECK_INTERVAL_MS", 60000),
 
   terraform: {
     workdir: readString("TERRAFORM_WORKDIR", "./terraform-runs"),

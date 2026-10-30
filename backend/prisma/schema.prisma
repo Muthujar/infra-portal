@@ -116,6 +116,11 @@ model Request {
   configJobId     String?       // AWX job id
   errorMessage    String?
 
+  // Lease: how long the server may live. Empty means it never expires.
+  // expiresAt is set when the server is ready; the worker decommissions it after that time.
+  leaseDays       Int?
+  expiresAt       DateTime?
+
   auditEvents     AuditEvent[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

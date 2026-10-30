@@ -2,106 +2,26 @@
 // It takes jobs from the queue and does the slow work:
 //   provision:    APPROVED -> PROVISIONING -> CONFIGURING -> COMPLETED (or FAILED)
 //   decommission: DECOMMISSIONING -> DECOMMISSIONED (or FAILED)
+//   expire-leases: runs every minute and decommissions servers whose lease has ended
 
 import { Job, Worker } from "bullmq";
 import { prisma } from "./db";
 import { config } from "./config";
-import { getConfigurator, getProvisioner } from "./connectors";
-import { StepError } from "./connectors/types";
-import { changeStatus } from "./services/requestStatus.service";
-import { getRedisConnection, JobData, QUEUE_NAME } from "./queue/queue";
-
-function errorLog(error: unknown): string {
-  if (error instanceof StepError) {
-    return error.log;
-  }
-  return "";
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
-
-async function provision(requestId: number) {
-  const provisioner = getProvisioner();
-  const configurator = getConfigurator();
-  let log = "";
-
-  // Step 1: create the server
-  let request = await changeStatus({
-    requestId: requestId,
-    to: "PROVISIONING",
-    message: "Creating the server with " + provisioner.name + " provisioner",
-    extraData: { errorMessage: null, provisionLog: "" },
-  });
-
-  try {
-    const created = await provisioner.provision(request);
-    log = log + "===== PROVISION (" + provisioner.name + ") =====\n" + created.log + "\n";
-
-    // Step 2: set up software inside the server
-    request = await changeStatus({
-      requestId: requestId,
-      to: "CONFIGURING",
-      message: "Server created (id " + (created.externalId || "-") + "), configuring with " + configurator.name,
-      extraData: { externalId: created.externalId, provisionLog: log },
-    });
-
-    const configured = await configurator.configure(request);
-    log = log + "===== CONFIGURE (" + configurator.name + ") =====\n" + configured.log + "\n";
-
-    // Step 3: done
-    await changeStatus({
-      requestId: requestId,
-      to: "COMPLETED",
-      message: "Server is ready",
-      extraData: { configJobId: configured.externalId, provisionLog: log },
-    });
-  } catch (error) {
-    log = log + errorLog(error);
-    await changeStatus({
-      requestId: requestId,
-      to: "FAILED",
-      message: "Failed: " + errorMessage(error),
-      extraData: { errorMessage: errorMessage(error), provisionLog: log },
-    });
-  }
-}
-
-async function decommission(requestId: number) {
-  const provisioner = getProvisioner();
-  const request = await prisma.request.findUniqueOrThrow({ where: { id: requestId } });
-  let log = request.provisionLog || "";
-
-  try {
-    const destroyed = await provisioner.destroy(request);
-    log = log + "===== DECOMMISSION (" + provisioner.name + ") =====\n" + destroyed.log + "\n";
-    await changeStatus({
-      requestId: requestId,
-      to: "DECOMMISSIONED",
-      message: "Server deleted, quota released",
-      extraData: { provisionLog: log },
-    });
-  } catch (error) {
-    log = log + errorLog(error);
-    await changeStatus({
-      requestId: requestId,
-      to: "FAILED",
-      message: "Decommission failed: " + errorMessage(error),
-      extraData: { errorMessage: errorMessage(error), provisionLog: log },
-    });
-  }
-}
+import { decommission, expireLeases, provision } from "./jobs";
+import { getRedisConnection, JobData, QUEUE_NAME, scheduleLeaseCheck } from "./queue/queue";
 
 async function handleJob(job: Job<JobData>) {
-  console.log("Job " + job.name + " for request #" + job.data.requestId);
   if (job.name === "provision") {
+    console.log("Job provision for request #" + job.data.requestId);
     await provision(job.data.requestId);
   } else if (job.name === "decommission") {
+    console.log("Job decommission for request #" + job.data.requestId);
     await decommission(job.data.requestId);
+  } else if (job.name === "expire-leases") {
+    const expired = await expireLeases();
+    if (expired.length > 0) {
+      console.log("Lease ended, decommissioned requests: " + expired.join(", "));
+    }
   } else {
     console.warn("Unknown job: " + job.name);
   }
@@ -114,6 +34,10 @@ const worker = new Worker<JobData>(QUEUE_NAME, handleJob, {
 
 worker.on("failed", (job, error) => {
   console.error("Job " + (job ? job.id : "?") + " crashed:", error);
+});
+
+scheduleLeaseCheck().catch((error) => {
+  console.error("Could not schedule the lease check:", error);
 });
 
 console.log(

@@ -1,5 +1,8 @@
 # Architecture
 
+The diagrams below are written in Mermaid, so GitHub draws them on this page. The same diagrams are also saved as image files in [`docs/diagrams/`](diagrams/):
+[system overview](diagrams/system-overview.png), [request life cycle](diagrams/request-lifecycle.png), [request sequence](diagrams/request-sequence.png) and [data model](diagrams/data-model.png).
+
 ## System overview
 
 ```mermaid
@@ -9,6 +12,7 @@ flowchart LR
     API -->|"add job"| Q[["Redis + BullMQ<br/>job queue"]]
     Q -->|"take job"| W["Worker<br/>Node.js"]
     W -->|"status, logs"| DB
+    Q -->|"every minute:<br/>expire-leases"| W
 
     W --> P{"Provisioner<br/>(PROVISIONER)"}
     P -->|mock| PM["Simulated Terraform"]
@@ -35,7 +39,7 @@ flowchart LR
 | **API server** | Login (JWT), RBAC checks, input validation (Zod), quota checks, approval rules, Terraform generation, audit log. Never does slow work itself. |
 | **PostgreSQL** | Single source of truth for requests and their history. |
 | **Redis + BullMQ** | Queue between the API and the worker. The API answers in milliseconds; provisioning can take minutes. |
-| **Worker** | Takes jobs from the queue, runs the provisioner and configurator, and moves the request through its statuses. Runs at most 2 jobs at once. |
+| **Worker** | Takes jobs from the queue, runs the provisioner and configurator, and moves the request through its statuses. Runs at most 2 jobs at once. Every minute it also decommissions servers whose lease has ended. |
 | **Provisioner** | Creates or deletes the server. Same interface for all three implementations: mock, local Terraform, GitLab pipeline. |
 | **Configurator** | Sets up software inside the new server. Same interface for mock and AWX. |
 
@@ -53,9 +57,9 @@ stateDiagram-v2
     PROVISIONING --> FAILED
     CONFIGURING --> COMPLETED: AWX job done
     CONFIGURING --> FAILED
-    FAILED --> APPROVED: retry
-    FAILED --> DECOMMISSIONING: clean up
-    COMPLETED --> DECOMMISSIONING: user deletes server
+    FAILED --> APPROVED: retry (build failed)
+    FAILED --> DECOMMISSIONING: clean up, or retry<br/>a failed delete
+    COMPLETED --> DECOMMISSIONING: user deletes server<br/>or lease ends
     DECOMMISSIONING --> DECOMMISSIONED
     DECOMMISSIONING --> FAILED
     REJECTED --> [*]
@@ -134,7 +138,7 @@ erDiagram
     TEAM { int id string name int cpuQuota int memoryQuotaMb int diskQuotaGb }
     USER { int id string email string name Role role int teamId }
     CATALOG_ITEM { int id string name Platform platform int cpu int memoryMb int diskGb bool active }
-    REQUEST { int id string hostname Environment environment RequestStatus status int cpu int memoryMb int diskGb text terraformCode text provisionLog }
+    REQUEST { int id string hostname Environment environment RequestStatus status int cpu int memoryMb int diskGb int leaseDays datetime expiresAt text terraformCode text provisionLog }
     AUDIT_EVENT { int id string action string message RequestStatus fromStatus RequestStatus toStatus datetime createdAt }
 ```
 

@@ -53,6 +53,7 @@ export function RequestsPage() {
               <th>Env</th>
               <th>Requested by</th>
               <th>Status</th>
+              <th>Expires</th>
               <th>Created</th>
             </tr>
           </thead>
@@ -71,6 +72,7 @@ export function RequestsPage() {
                 <td>
                   <StatusBadge status={request.status} />
                 </td>
+                <td>{request.expiresAt ? new Date(request.expiresAt).toLocaleDateString() : "-"}</td>
                 <td>{new Date(request.createdAt).toLocaleString()}</td>
               </tr>
             ))}

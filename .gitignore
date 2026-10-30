@@ -10,3 +10,4 @@ backend/terraform-runs/
 *.tfstate.backup
 .terraform.lock.hcl
 dump.rdb
+terraform-check/
