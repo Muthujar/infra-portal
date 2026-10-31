@@ -1,0 +1,15 @@
+# Opens the database ports on your machine, for running the backend with npm (see README, "Local development").
+# Use it together with the main file:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+# If you already run PostgreSQL or Redis yourself, pick other ports, e.g. in PowerShell:
+#   $env:POSTGRES_PORT=5433; docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+# and use the same port in DATABASE_URL in backend/.env.
+
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  redis:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"

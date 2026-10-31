@@ -36,8 +36,8 @@ If something breaks later, you then know it is the Proxmox side and not the app.
 5. Open http://localhost:8080, click the **dev@demo.local** button, request a server, log in as **lead@demo.local**,
    approve it and watch it reach *Ready*.
 
-If port 5432, 6379, 4000 or 8080 is already in use (for example by a local PostgreSQL), stop that program or change the
-left port number in `docker-compose.yml`.
+Only port 8080 is opened on your machine. If it is already in use, stop that program or change the left port number
+of the `web` service in `docker-compose.yml`.
 
 ## Part 2: Install Proxmox VE in VirtualBox
 

@@ -28,6 +28,26 @@ function errorMessage(error: unknown): string {
 }
 
 export async function provision(requestId: number) {
+  const current = await prisma.request.findUniqueOrThrow({ where: { id: requestId } });
+
+  // BullMQ gives a job again when the worker stopped in the middle of it (crash, restart).
+  // We cannot know how far that run got, so mark the request FAILED and let a person press Retry.
+  // Terraform keeps its state, so a retry continues safely from what already exists.
+  if (current.status === "PROVISIONING" || current.status === "CONFIGURING") {
+    const message = "The worker stopped while this step was running. Click Retry to try again.";
+    await changeStatus({
+      requestId: requestId,
+      to: "FAILED",
+      message: "Failed: " + message,
+      extraData: { errorMessage: message },
+    });
+    return;
+  }
+  if (current.status !== "APPROVED") {
+    console.warn("Skipping provision job for request #" + requestId + ": status is " + current.status);
+    return;
+  }
+
   const provisioner = getProvisioner();
   const configurator = getConfigurator();
   let log = "";

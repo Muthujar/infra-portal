@@ -252,3 +252,42 @@ describe("validation and quotas", () => {
       .send({ active: true });
   });
 });
+
+describe("failure recovery", () => {
+  it("marks the request FAILED when the job queue is down, so Retry works later", async () => {
+    const created = await createRequest(devToken, uniqueHostname("queue"));
+    const id = created.body.id;
+
+    // Redis is down: adding the job fails once.
+    vi.mocked(addJob).mockRejectedValueOnce(new Error("connect ECONNREFUSED 127.0.0.1:6379"));
+    const approved = await request(app).post("/api/requests/" + id + "/approve").set("Authorization", auth(leadToken)).send({});
+    expect(approved.status).toBe(503);
+    expect(await getStatus(id)).toBe("FAILED");
+
+    // The queue is back: Retry puts the job on the queue and the worker builds the server.
+    const retry = await request(app).post("/api/requests/" + id + "/retry").set("Authorization", auth(devToken));
+    expect(retry.status).toBe(200);
+    expect(addJob).toHaveBeenLastCalledWith("provision", id);
+    await provision(id);
+    expect(await getStatus(id)).toBe("COMPLETED");
+  });
+
+  it("marks the request FAILED when the worker stopped in the middle of a job", async () => {
+    const created = await createRequest(devToken, uniqueHostname("crash"));
+    const id = created.body.id;
+    await request(app).post("/api/requests/" + id + "/approve").set("Authorization", auth(leadToken)).send({});
+
+    // The worker set PROVISIONING and then crashed; BullMQ hands the same job out again.
+    await prisma.request.update({ where: { id: id }, data: { status: "PROVISIONING" } });
+    await provision(id);
+
+    const failed = await prisma.request.findUniqueOrThrow({ where: { id: id } });
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorMessage).toContain("worker stopped");
+
+    const retry = await request(app).post("/api/requests/" + id + "/retry").set("Authorization", auth(devToken));
+    expect(retry.status).toBe(200);
+    await provision(id);
+    expect(await getStatus(id)).toBe("COMPLETED");
+  });
+});

@@ -10,7 +10,7 @@ Repository: https://github.com/Muthujar/infra-portal
 | Setup instructions | [`README.md`](README.md) (quick start with Docker, local development, modes, tests). Windows + Proxmox in VirtualBox: [`docs/setup-windows-proxmox.md`](docs/setup-windows-proxmox.md). GitLab CI provisioning: [`docs/setup-gitlab.md`](docs/setup-gitlab.md) |
 | Demo document | [`docs/demo.md`](docs/demo.md) (step-by-step walkthrough with screenshots in [`docs/screenshots/`](docs/screenshots/)) |
 | Presentation | [`docs/Infra-Portal-Presentation.pdf`](docs/Infra-Portal-Presentation.pdf) (11 slides; source: [`docs/presentation/slides.html`](docs/presentation/slides.html)) |
-| Tests and CI | [`backend/tests/`](backend/tests/) (34 tests) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Tests and CI | [`backend/tests/`](backend/tests/) (36 tests) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 
 ## Run it in one command
 
