@@ -1,0 +1,6 @@
+# Store text files with LF line endings in Git, whatever the editor uses locally (Windows editors often use CRLF).
+# This keeps diffs small and shell scripts runnable inside Linux containers.
+* text=auto
+*.sh text eol=lf
+*.png binary
+*.pdf binary

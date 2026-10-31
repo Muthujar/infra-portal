@@ -77,6 +77,9 @@ cp backend/.env.example backend/.env       # Windows: copy backend\.env.example 
 docker compose up --build
 ```
 
+Only port 8080 is opened on your machine, so it does not clash with a PostgreSQL or Redis you already run.
+The first build takes 5 to 10 minutes. It works on Windows, macOS (Intel and Apple Silicon) and Linux.
+
 Open **http://localhost:8080** and use one of the demo users (password `Password@123`):
 
 | Email | Role | Can do |
@@ -93,7 +96,8 @@ Requirements: Node.js 20+, and Docker for Postgres and Redis (or install them lo
 
 ```bash
 # 1. Databases
-docker compose up -d postgres redis
+# Opens ports 5432 and 6379. If you already run PostgreSQL/Redis, see docker-compose.dev.yml for other ports.
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 
 # 2. Backend (terminal 1)
 cd backend
@@ -164,7 +168,7 @@ The backend tests run the API and the worker's job functions against a real Post
 They use their own database, `infra_portal_test`, which is emptied and seeded at the start of every run.
 
 ```bash
-docker compose up -d postgres
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
 docker compose exec postgres createdb -U portal infra_portal_test   # first time only
 cd backend
 npm test

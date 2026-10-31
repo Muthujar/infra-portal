@@ -53,6 +53,7 @@ stateDiagram-v2
     PENDING_APPROVAL --> APPROVED: approver approves<br/>(Terraform generated, job queued)
     PENDING_APPROVAL --> REJECTED: approver rejects
     APPROVED --> PROVISIONING: worker starts
+    APPROVED --> FAILED: job could not be queued
     PROVISIONING --> CONFIGURING: server created
     PROVISIONING --> FAILED
     CONFIGURING --> COMPLETED: AWX job done
@@ -71,6 +72,19 @@ All status changes go through one function (`changeStatus` in `backend/src/servi
 1. checks that the move is allowed (for example, a REJECTED request can never be provisioned),
 2. updates the row **only if the status has not changed in the meantime**, which prevents two approvers or two workers from acting on the same request,
 3. writes an audit event with who did it, when, and the old and new status.
+
+## Failure handling
+
+| What goes wrong | What happens | Where |
+|---|---|---|
+| Redis is down when a request is approved, retried or decommissioned | The request is marked **FAILED** with "job queue is not reachable" and the API answers 503. When Redis is back, **Retry** queues it again. Without this it would stay in APPROVED forever. | `queueJobOrFail` in `requests.routes.ts` |
+| The worker crashes in the middle of provisioning | BullMQ hands the stalled job out again when a worker is back. The job sees the request is already PROVISIONING/CONFIGURING, marks it **FAILED** ("the worker stopped") and stops. **Retry** runs Terraform again, which continues from its saved state instead of creating a duplicate. | `provision` in `jobs.ts` |
+| Terraform, GitLab or AWX fails | The step's log and error are saved, the request is **FAILED** and its quota is released. **Retry** or **Decommission** are offered. | `jobs.ts`, connectors |
+| A decommission fails | **Retry** tries the delete again (it does not rebuild the server). | retry route |
+| Two people act on the same request at once | The status update only succeeds if the status is unchanged since it was read; the second person gets "changed by someone else". | `changeStatus` |
+| Containers start in the wrong order | The worker and web wait until the API is healthy, which happens after the database migrations. | `docker-compose.yml` healthcheck |
+
+**Next steps for production:** a transactional outbox (write the job to the database in the same transaction as the status change), and a timeout that fails requests stuck in PROVISIONING when no worker comes back at all.
 
 ## Sequence: request to ready server
 

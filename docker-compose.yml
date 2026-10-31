@@ -1,8 +1,9 @@
 # Starts the whole system:  docker compose up --build
 # Open http://localhost:8080 and log in with a demo user (see README).
+# Only port 8080 is opened on your machine, so a PostgreSQL or Redis you already run does not clash.
 #
-# For local development you can also start only the databases:
-#   docker compose up -d postgres redis
+# For local development you can also start only the databases, with their ports opened:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
 # and run backend/frontend with npm (see README).
 
 services:
@@ -12,8 +13,6 @@ services:
       POSTGRES_USER: portal
       POSTGRES_PASSWORD: portal
       POSTGRES_DB: infra_portal
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -23,8 +22,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
 
   api:
     build: ./backend
@@ -34,8 +31,13 @@ services:
       REDIS_URL: redis://redis:6379
     # Create tables and demo data, then start the API
     command: sh -c "npx prisma migrate deploy && npx tsx prisma/seed.ts && node dist/server.js"
-    ports:
-      - "4000:4000"
+    # "Healthy" once the database is migrated and the API answers, so the worker and web start after it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,14 +55,16 @@ services:
     volumes:
       - terraform-runs:/app/terraform-runs # keeps Terraform state between restarts
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   web:
     build: ./frontend
     ports:
       - "8080:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

@@ -9,7 +9,7 @@ import { writeAudit } from "./audit.service";
 // For each status, the statuses it is allowed to move to.
 const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   PENDING_APPROVAL: ["APPROVED", "REJECTED"],
-  APPROVED: ["PROVISIONING"],
+  APPROVED: ["PROVISIONING", "FAILED"], // FAILED when the job could not be queued
   REJECTED: [],
   PROVISIONING: ["CONFIGURING", "FAILED"],
   CONFIGURING: ["COMPLETED", "FAILED"],

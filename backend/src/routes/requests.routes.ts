@@ -67,6 +67,24 @@ function checkCanApprove(user: AuthUser, request: ServerRequest) {
   }
 }
 
+// Puts a job on the queue. If the queue (Redis) cannot be reached, the request is marked FAILED,
+// so it does not stay stuck in APPROVED or DECOMMISSIONING; the user can press Retry later.
+async function queueJobOrFail(name: "provision" | "decommission", requestId: number) {
+  try {
+    await addJob(name, requestId);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const message = "Could not start the job because the job queue is not reachable. Click Retry when it is back.";
+    await changeStatus({
+      requestId: requestId,
+      to: "FAILED",
+      message: "Failed: " + message + " (" + reason + ")",
+      extraData: { errorMessage: message },
+    });
+    throw new HttpError(503, message);
+  }
+}
+
 async function findRequestOr404(id: number) {
   const request = await prisma.request.findUnique({ where: { id: id } });
   if (!request) {
@@ -251,7 +269,7 @@ requestsRouter.post(
     });
 
     // Hand the slow work to the worker.
-    await addJob("provision", request.id);
+    await queueJobOrFail("provision", request.id);
 
     res.json(updated);
   })
@@ -316,7 +334,7 @@ requestsRouter.post(
         actorId: user.id,
         message: "Decommission retry requested by " + user.name,
       });
-      await addJob("decommission", request.id);
+      await queueJobOrFail("decommission", request.id);
       return res.json(updated);
     }
 
@@ -329,7 +347,7 @@ requestsRouter.post(
       actorId: user.id,
       message: "Retry requested by " + user.name,
     });
-    await addJob("provision", request.id);
+    await queueJobOrFail("provision", request.id);
     res.json(updated);
   })
 );
@@ -352,7 +370,7 @@ requestsRouter.post(
       actorId: user.id,
       message: "Decommission requested by " + user.name,
     });
-    await addJob("decommission", request.id);
+    await queueJobOrFail("decommission", request.id);
     res.json(updated);
   })
 );
