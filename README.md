@@ -54,9 +54,4 @@ The app starts in mock mode, so it runs on any machine. To change mode, edit `ba
 - [Slides (PDF)](docs/Infra-Portal-Presentation.pdf)
 - [Development, tests and API](docs/development.md)
 
-## Next steps for production
-
-- SAML single sign-on
-- Shared Terraform state (GitLab or S3)
-- Secrets in a vault
-- Email or Slack notifications
+What is real, what is mocked, and how the rest would be done: [SUBMISSION.md](SUBMISSION.md).

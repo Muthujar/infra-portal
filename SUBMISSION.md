@@ -35,10 +35,20 @@ Open http://localhost:8080 and click a demo user.
 | AWS EC2 | Terraform validated. Not applied, to avoid cloud cost |
 | GitLab CI | Connector built. Commits to gitlab.com work and a runner is online. The pipeline did not run, because gitlab.com requires account verification |
 | AWX | Connector built, not tested. Mocked in the demo, because AWX needs Kubernetes |
-| SAML | Not built. Next step, using the same group-to-role mapping as LDAP |
 
 ## Tested on real Proxmox
 
 Running against Proxmox VE 9.2, the portal created container 100 with Terraform in about 40 seconds, then deleted it on decommission.
 
 ![Container created by the portal in Proxmox](docs/screenshots/13-proxmox-real.png)
+
+## If this goes forward
+
+| Area | How it would be done |
+|---|---|
+| GitLab pipeline | Use a verified GitLab account or a company GitLab. The code and the pipeline file are ready, so it needs configuration only. |
+| AWX | Install AWX on Kubernetes, add a Proxmox inventory and a job template, then set `CONFIGURATOR=awx`. |
+| AWS | Give the worker an IAM role, store Terraform state in S3, then set `AWS_APPLY_ENABLED=true`. |
+| Terraform state | Move from local folders to GitLab or S3 state, so any worker can manage any server. |
+| Secrets | Read tokens and passwords from a vault instead of `.env`. |
+| Notifications | Send email or Slack messages when a request is approved, completed or about to expire. |
