@@ -2,8 +2,6 @@
 
 In this mode, the worker commits `main.tf` to a GitLab project and a pipeline runs Terraform. The job runs on a runner on your own machine, because gitlab.com cannot reach a private Proxmox server.
 
-**Status:** commits to gitlab.com and the runner connection are tested. The pipeline itself has not been run, because gitlab.com requires account verification.
-
 **Before you start:** finish the [Proxmox setup](setup-windows-proxmox.md). This takes about 30 minutes.
 
 ## 1. Create the project

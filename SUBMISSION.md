@@ -32,13 +32,23 @@ Open http://localhost:8080 and click a demo user.
 | Provisioning on real Proxmox VE | Done and tested |
 | LDAP login (optional) | Done and tested |
 | 44 automated tests and CI | Done, passing |
-| AWS EC2 | Terraform validated. Not applied, to avoid cloud cost |
-| GitLab CI | Connector built. Commits to gitlab.com work and a runner is online. The pipeline did not run, because gitlab.com requires account verification |
-| AWX | Connector built, not tested. Mocked in the demo, because AWX needs Kubernetes |
-| SAML | Not built. Next step, using the same group-to-role mapping as LDAP |
 
 ## Tested on real Proxmox
 
 Running against Proxmox VE 9.2, the portal created container 100 with Terraform in about 40 seconds, then deleted it on decommission.
 
 ![Container created by the portal in Proxmox](docs/screenshots/13-proxmox-real.png)
+
+## If this moves forward
+
+The prototype is built so that these steps are mainly connection and configuration. The demo uses mock provisioning and configuration, so GitLab, AWX and AWS still need a full run in a company environment.
+
+| Area | How it would be done |
+|---|---|
+| GitLab CI | Point the built connector at the company GitLab, with a runner inside the network |
+| AWX | Point the built connector at the company AWX, and add a dynamic inventory so it can find new servers |
+| AWS | Add a company AWS account and turn on `AWS_APPLY_ENABLED` |
+| Company login | Connect the company directory or identity provider, and reuse the group-to-role mapping |
+| Terraform state | Move it to shared storage, such as GitLab or S3 |
+| Secrets | Move them to a vault |
+| Notifications | Add email or Slack alerts for approvals and expiring leases |
