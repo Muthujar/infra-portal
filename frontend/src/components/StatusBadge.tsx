@@ -14,7 +14,12 @@ const LABELS: Record<RequestStatus, string> = {
 };
 
 export function StatusBadge({ status }: { status: RequestStatus }) {
-  return <span className={"badge badge-" + status.toLowerCase()}>{LABELS[status]}</span>;
+  return (
+    <span className={"badge badge-" + status.toLowerCase()}>
+      <span className={"badge-dot" + (isInProgress(status) ? " pulse" : "")} aria-hidden="true" />
+      {LABELS[status]}
+    </span>
+  );
 }
 
 // True while the worker is still busy, so pages know to refresh.
