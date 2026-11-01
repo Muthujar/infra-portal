@@ -12,7 +12,7 @@ Today a developer who needs a server raises a ticket, waits for the DevOps team,
 
 ![Login](screenshots/01-login.png)
 
-Three demo users show the three roles (RBAC): developer, team lead and DevOps admin. Click **Developer**.
+Three demo users show the three roles (RBAC): developer, team lead and DevOps admin. Click **Developer** under "Try a demo user".
 
 ## 2. Browse the service catalog
 
@@ -25,8 +25,8 @@ Three demo users show the three roles (RBAC): developer, team lead and DevOps ad
 
 ![Request form](screenshots/03-request-form.png)
 
-Click **Request server** on *Small Linux Server*, enter hostname `billing-api-01`, choose **DEV**, keep the **30 day lease**, and give a reason. Click **Review and submit**, check the summary, and confirm.
-The API validates the hostname, checks that it is not already in use, and checks the team quota.
+Click **Request server** on *Small Linux Server*, enter hostname `billing-api-01`, choose **DEV**, keep the **30 day lease**, and give a reason. Click **Review and submit**: a confirm box shows a summary and who will approve it.
+The form checks the hostname when you leave the field. The API validates it again, checks that it is not already in use, and checks the team quota.
 
 ![Pending](screenshots/04-request-pending.png)
 
@@ -40,12 +40,13 @@ Request two *Database Servers*. The second one is blocked before it reaches anyo
 
 ![Approvals](screenshots/06-approvals.png)
 
-Log out and click **Team lead**, then open **Approvals**. The sidebar shows how many requests are waiting.
+Log out and click **Team lead**, then open **Approvals** (the sidebar badge shows how many requests are waiting).
 
 - The lead sees only their team's DEV/QA requests.
 - PROD requests are **not** shown to the lead, because production needs an admin.
 - Each card shows the size, the reason and the lease the requester asked for.
-- Click **Approve**, check the summary, add an optional comment, and confirm. At this moment the API generates the Terraform code and puts a job on the queue. **Reject** asks for a reason.
+- Click **Approve**. A confirm box shows what will be created and takes an optional comment. Rejecting asks for a reason, which the requester sees.
+- At this moment the API generates the Terraform code and puts a job on the queue.
 
 ## 6. Watch it being created
 
@@ -76,17 +77,17 @@ Log in as **DevOps admin**:
 
 - **Approvals:** approve the PROD request.
 - **Requests:** see every team's requests.
-- **Admin:** change team quotas, disable a catalog item, and read the full audit log.
+- **Admin:** change team quotas (the confirm box shows old and new limits), disable a catalog item, and search the full audit log.
 
 ![Admin](screenshots/11-admin.png)
 
 ## 9. Decommission
 
-On a ready server, click **Decommission** and type the hostname to confirm. The worker runs `terraform destroy`, the status becomes **Deleted** and the quota is released.
+On a ready server, click **Decommission**. Because this cannot be undone, you type the hostname to confirm. The worker runs `terraform destroy`, the status becomes **Deleted** and the quota is released.
 
 ## 10. Leases
 
-In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When the server is ready, the detail page shows the expiry date and an **Extend lease** button, which adds 30 days. The worker checks every minute and decommissions servers whose lease has ended, writing "Lease ended, decommissioning automatically" to the timeline.
+In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When the server is ready, the detail page shows the expiry date and an **Extend lease** button (adds 30 days after a confirm). The worker checks every minute and decommissions servers whose lease has ended, writing "Lease ended, decommissioning automatically" to the timeline.
 
 ![Lease](screenshots/12-lease.png)
 
@@ -98,13 +99,14 @@ In the request form, pick a **Lease** of 7, 30 or 90 days (or no expiry). When t
 | Terraform code generation | Real |
 | Running Terraform against Proxmox (`PROVISIONER=local`) | Real, needs Proxmox (for example in VirtualBox) |
 | AWS | Terraform generated and validated; apply disabled by default to avoid cost |
-| GitLab pipeline (`PROVISIONER=gitlab`) | Real API code and sample `.gitlab-ci.yml`; mock used in the demo |
+| GitLab pipeline (`PROVISIONER=gitlab`) | Real API code and sample `.gitlab-ci.yml`. Tested against gitlab.com: commits `main.tf` and starts the pipeline; the job itself was blocked by gitlab.com account verification (see SUBMISSION.md) |
 | AWX (`CONFIGURATOR=awx`) | Real API code and sample playbook; mock used in the demo |
-| SAML / LDAP login | Not built; local JWT login with roles. Next step: Keycloak or Active Directory groups mapped to roles |
+| LDAP login | Real: optional OpenLDAP container (`--profile ldap`), directory groups mapped to roles and teams. See [ldap.md](ldap.md) |
+| SAML single sign-on | Not built. Next step: Keycloak or Azure AD in front of the same role mapping |
 
 ## Quality: tests and CI
 
-- **34 automated tests** (Vitest + Supertest) cover the full request life cycle, the approval rules, input validation, quotas, leases, and the GitLab connector against a fake GitLab API. They run against a real PostgreSQL database.
+- **44 automated tests** (Vitest + Supertest) cover the full request life cycle, the approval rules, input validation, quotas, leases, the GitLab connector against a fake GitLab API, and LDAP login against a real OpenLDAP server (in CI). They run against a real PostgreSQL database.
 - **GitHub Actions** runs on every push: backend typecheck, tests and build; frontend lint and build; `terraform fmt` and `terraform validate` on the generated Proxmox and AWS files; and `docker compose up --build` followed by `scripts/smoke-test.sh`, which takes one request all the way to Ready.
 
 ## Key design decisions
