@@ -1,160 +1,78 @@
 # Architecture
 
-The diagrams below are written in Mermaid, so GitHub draws them on this page. The same diagrams are also saved as image files in [`docs/diagrams/`](diagrams/):
-[system overview](diagrams/system-overview.png), [request life cycle](diagrams/request-lifecycle.png), [request sequence](diagrams/request-sequence.png) and [data model](diagrams/data-model.png).
-
 ## System overview
 
 ```mermaid
 flowchart LR
-    U["User's browser<br/>React + TypeScript"] -->|"REST /api (JWT)"| API["API server<br/>Node.js + Express"]
-    API -->|Prisma| DB[("PostgreSQL<br/>users, teams, quotas,<br/>catalog, requests, audit")]
+    U["Browser<br/>React + TypeScript"] -->|"REST API"| API["API server<br/>Node.js + Express"]
+    API --> DB[("PostgreSQL")]
+    API -.->|"optional login"| LD["LDAP directory"]
     API -->|"add job"| Q[["Redis + BullMQ<br/>job queue"]]
-    Q -->|"take job"| W["Worker<br/>Node.js"]
-    W -->|"status, logs"| DB
-    Q -->|"every minute:<br/>expire-leases"| W
+    Q -->|"take job"| W["Worker"]
+    W --> DB
 
-    W --> P{"Provisioner<br/>(PROVISIONER)"}
+    W --> P{"Provisioner"}
     P -->|mock| PM["Simulated Terraform"]
-    P -->|local| TF["Terraform CLI"]
-    P -->|gitlab| GL["GitLab CI API<br/>commit main.tf + run pipeline"]
-    GL --> TF2["Terraform in pipeline"]
-    TF --> PVE["Proxmox VE<br/>(LXC containers)"]
+    P -->|local| TF["Terraform"]
+    P -->|gitlab| GL["GitLab pipeline<br/>runs Terraform"]
+    TF --> PVE["Proxmox VE"]
     TF --> AWS["AWS EC2"]
-    TF2 --> PVE
-    TF2 --> AWS
+    GL --> PVE
+    GL --> AWS
 
-    W --> C{"Configurator<br/>(CONFIGURATOR)"}
+    W --> C{"Configurator"}
     C -->|mock| CM["Simulated AWX job"]
-    C -->|awx| AWX["AWX API<br/>runs Ansible playbook"]
-    AWX --> PVE
-    AWX --> AWS
+    C -->|awx| AWX["AWX runs Ansible"]
 ```
 
-### Components
-
-| Component | Responsibility |
+| Part | Job |
 |---|---|
-| **React front end** | Catalog, request form, live request status, approvals screen, admin screen. Hides pages the user's role cannot use. |
-| **API server** | Login (JWT), RBAC checks, input validation (Zod), quota checks, approval rules, Terraform generation, audit log. Never does slow work itself. |
-| **PostgreSQL** | Single source of truth for requests and their history. |
-| **Redis + BullMQ** | Queue between the API and the worker. The API answers in milliseconds; provisioning can take minutes. |
-| **Worker** | Takes jobs from the queue, runs the provisioner and configurator, and moves the request through its statuses. Runs at most 2 jobs at once. Every minute it also decommissions servers whose lease has ended. |
-| **Provisioner** | Creates or deletes the server. Same interface for all three implementations: mock, local Terraform, GitLab pipeline. |
-| **Configurator** | Sets up software inside the new server. Same interface for mock and AWX. |
+| React UI | Catalog, requests, approvals and admin screens |
+| API server | Login, permissions, quotas, approval rules, Terraform generation |
+| PostgreSQL | Stores requests and their full history |
+| Redis queue | Passes slow work from the API to the worker |
+| Worker | Creates, configures and deletes servers. Deletes servers when their lease ends |
+| Provisioner, Configurator | Swappable mock or real connectors |
 
-The **connector pattern** (one interface, a mock and a real implementation) means the demo can run on any laptop, and switching to real systems is only a configuration change.
+**Key idea:** provisioning takes minutes, so the API only saves the decision and queues a job. Mock and real connectors share one interface, so moving to real systems is a settings change.
 
-## Request life cycle (state machine)
+## Request life cycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING_APPROVAL: user submits
-    PENDING_APPROVAL --> APPROVED: approver approves<br/>(Terraform generated, job queued)
-    PENDING_APPROVAL --> REJECTED: approver rejects
+    [*] --> PENDING_APPROVAL: submit
+    PENDING_APPROVAL --> APPROVED: approve
+    PENDING_APPROVAL --> REJECTED: reject
     APPROVED --> PROVISIONING: worker starts
-    APPROVED --> FAILED: job could not be queued
     PROVISIONING --> CONFIGURING: server created
-    PROVISIONING --> FAILED
-    CONFIGURING --> COMPLETED: AWX job done
-    CONFIGURING --> FAILED
-    FAILED --> APPROVED: retry (build failed)
-    FAILED --> DECOMMISSIONING: clean up, or retry<br/>a failed delete
-    COMPLETED --> DECOMMISSIONING: user deletes server<br/>or lease ends
+    CONFIGURING --> COMPLETED: setup done
+    COMPLETED --> DECOMMISSIONING: decommission or lease ends
     DECOMMISSIONING --> DECOMMISSIONED
+    PROVISIONING --> FAILED
+    CONFIGURING --> FAILED
     DECOMMISSIONING --> FAILED
-    REJECTED --> [*]
-    DECOMMISSIONED --> [*]
+    FAILED --> APPROVED: retry
+    FAILED --> DECOMMISSIONING: clean up
 ```
 
-All status changes go through one function (`changeStatus` in `backend/src/services/requestStatus.service.ts`). It:
+One function makes every status change. It blocks moves that are not allowed, stops two people acting at once, and writes the audit log.
 
-1. checks that the move is allowed (for example, a REJECTED request can never be provisioned),
-2. updates the row **only if the status has not changed in the meantime**, which prevents two approvers or two workers from acting on the same request,
-3. writes an audit event with who did it, when, and the old and new status.
+## Security
 
-## Failure handling
+- Every API call except login needs a valid token.
+- Requesters see only their own requests. Approvers see their team's.
+- Nobody can approve their own request, and PROD needs an admin.
+- Team quotas are checked on request, approval and retry.
+- Passwords are stored as hashes. With LDAP, the portal never stores them.
+- Proxmox and AWS secrets are never saved in `main.tf` or the database.
+- All input is validated on the server.
 
-| What goes wrong | What happens | Where |
-|---|---|---|
-| Redis is down when a request is approved, retried or decommissioned | The request is marked **FAILED** with "job queue is not reachable" and the API answers 503. When Redis is back, **Retry** queues it again. Without this it would stay in APPROVED forever. | `queueJobOrFail` in `requests.routes.ts` |
-| The worker crashes in the middle of provisioning | BullMQ hands the stalled job out again when a worker is back. The job sees the request is already PROVISIONING/CONFIGURING, marks it **FAILED** ("the worker stopped") and stops. **Retry** runs Terraform again, which continues from its saved state instead of creating a duplicate. | `provision` in `jobs.ts` |
-| Terraform, GitLab or AWX fails | The step's log and error are saved, the request is **FAILED** and its quota is released. **Retry** or **Decommission** are offered. | `jobs.ts`, connectors |
-| A decommission fails | **Retry** tries the delete again (it does not rebuild the server). | retry route |
-| Two people act on the same request at once | The status update only succeeds if the status is unchanged since it was read; the second person gets "changed by someone else". | `changeStatus` |
-| Containers start in the wrong order | The worker and web wait until the API is healthy, which happens after the database migrations. | `docker-compose.yml` healthcheck |
+## When things fail
 
-**Next steps for production:** a transactional outbox (write the job to the database in the same transaction as the status change), and a timeout that fails requests stuck in PROVISIONING when no worker comes back at all.
+- **Terraform or a connector fails:** the request shows Failed with its log, and offers Retry or Decommission.
+- **Redis is down:** the request is marked Failed, and Retry queues it again later.
+- **The worker crashes:** the request is marked Failed. Retry continues from Terraform's saved state, so no duplicate is created.
 
-## Sequence: request to ready server
+## More diagrams
 
-```mermaid
-sequenceDiagram
-    actor Dev as Developer
-    actor Lead as Team lead
-    participant UI as React UI
-    participant API
-    participant DB as PostgreSQL
-    participant Q as Redis queue
-    participant W as Worker
-    participant TF as Terraform
-    participant AWX
-
-    Dev->>UI: choose catalog item, fill form
-    UI->>API: POST /api/requests
-    API->>DB: check hostname + team quota
-    API->>DB: save request (PENDING_APPROVAL) + audit
-    Lead->>UI: open Approvals, click Approve
-    UI->>API: POST /api/requests/:id/approve
-    API->>API: check role, team, PROD rule, quota
-    API->>API: generate main.tf from template
-    API->>DB: APPROVED + terraformCode + audit
-    API->>Q: add "provision" job
-    Q->>W: job
-    W->>DB: PROVISIONING
-    W->>TF: terraform init + apply
-    TF-->>W: container id
-    W->>DB: CONFIGURING
-    W->>AWX: launch job template
-    AWX-->>W: successful
-    W->>DB: COMPLETED + logs
-    UI->>API: polls GET /api/requests/:id every 2s
-    API-->>UI: COMPLETED
-```
-
-## Security and RBAC rules
-
-| Rule | Where it is enforced |
-|---|---|
-| Every API call except login needs a valid JWT | `requireAuth` middleware |
-| Admin-only endpoints (quotas, catalog changes, audit log) | `requireRole(["ADMIN"])` |
-| Requesters see only their own requests; approvers see their team's | `visibleRequestsFilter` in `requests.routes.ts` |
-| Nobody can approve their own request | `checkCanApprove` |
-| Approvers can approve only their team's DEV/QA requests | `checkCanApprove` |
-| PROD requests need an admin | `checkCanApprove` |
-| Team quota is checked on request, on approval and on retry | `assertQuotaAvailable` |
-| Passwords are stored as bcrypt hashes | `seed.ts`, `auth.routes.ts` |
-| With LDAP on, company users are checked against the directory and get role and team from their groups; the portal never stores their password | `ldap.service.ts`, `auth.routes.ts` ([ldap.md](ldap.md)) |
-| Proxmox / AWS secrets never go into `main.tf` or the database; they are passed to Terraform as `TF_VAR_*` environment variables | `terraform/runner.ts` |
-| All input is validated (hostname format, sizes, comments) | Zod schemas in each route |
-
-## Data model
-
-```mermaid
-erDiagram
-    TEAM ||--o{ USER : has
-    TEAM ||--o{ REQUEST : owns
-    USER ||--o{ REQUEST : "requests"
-    USER ||--o{ REQUEST : "approves"
-    CATALOG_ITEM ||--o{ REQUEST : "used by"
-    REQUEST ||--o{ AUDIT_EVENT : history
-    USER ||--o{ AUDIT_EVENT : "actor"
-
-    TEAM { int id string name int cpuQuota int memoryQuotaMb int diskQuotaGb }
-    USER { int id string email string name Role role int teamId }
-    CATALOG_ITEM { int id string name Platform platform int cpu int memoryMb int diskGb bool active }
-    REQUEST { int id string hostname Environment environment RequestStatus status int cpu int memoryMb int diskGb int leaseDays datetime expiresAt text terraformCode text provisionLog }
-    AUDIT_EVENT { int id string action string message RequestStatus fromStatus RequestStatus toStatus datetime createdAt }
-```
-
-The request copies the size from the catalog item, so changing the catalog later does not change existing servers or quota usage.
+[Request sequence](diagrams/request-sequence.png) · [Data model](diagrams/data-model.png)
