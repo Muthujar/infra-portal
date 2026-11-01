@@ -2,7 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
-import { FeedbackProvider } from "./components/Feedback";
+import { ConfirmProvider } from "./components/ConfirmDialog";
+import { ToastProvider } from "./components/Toast";
 import App from "./App";
 import "./index.css";
 
@@ -10,9 +11,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <FeedbackProvider>
-          <App />
-        </FeedbackProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <App />
+          </ConfirmProvider>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>

@@ -3,69 +3,28 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { useFeedback } from "../components/Feedback";
+import { useConfirm } from "../components/ConfirmDialog";
+import { Icon } from "../components/Icon";
+import { EmptyState, PageHeader, Skeleton } from "../components/Page";
 import { isInProgress, StatusBadge } from "../components/StatusBadge";
-import { EnvTag, Loading, PlatformTag } from "../components/Ui";
-import { formatMemory, timeAgo } from "../format";
-import type { RequestStatus, ServerRequest } from "../types";
+import { useToast } from "../components/Toast";
+import { expiresSoon, formatDateTime, formatMemory, formatPlatform } from "../format";
+import type { ServerRequest } from "../types";
 
 // The happy-path steps shown as a progress line.
-const STEPS: RequestStatus[] = ["PENDING_APPROVAL", "APPROVED", "PROVISIONING", "CONFIGURING", "COMPLETED"];
+const STEPS = ["PENDING_APPROVAL", "APPROVED", "PROVISIONING", "CONFIGURING", "COMPLETED"];
 const STEP_LABELS = ["Submitted", "Approved", "Creating server", "Setting up", "Ready"];
-
-interface Step {
-  label: string;
-  state: "done" | "current" | "failed" | "todo";
-}
-
-// Work out what the progress line shows for the request's status.
-function buildSteps(request: ServerRequest): Step[] {
-  const status = request.status;
-
-  if (status === "REJECTED") {
-    return [
-      { label: "Submitted", state: "done" },
-      { label: "Rejected", state: "failed" },
-    ];
-  }
-
-  if (status === "FAILED") {
-    // Find the step that was running when it failed (from the audit log).
-    const failEvent = (request.auditEvents || []).find((e) => e.toStatus === "FAILED");
-    let failedAt = STEPS.indexOf(failEvent?.fromStatus || "PROVISIONING");
-    if (failedAt < 0) {
-      failedAt = 2;
-    }
-    return STEP_LABELS.map((label, index) => {
-      if (index < failedAt) return { label, state: "done" };
-      if (index === failedAt) return { label: label + " failed", state: "failed" };
-      return { label, state: "todo" };
-    });
-  }
-
-  if (status === "DECOMMISSIONING" || status === "DECOMMISSIONED") {
-    const steps: Step[] = STEP_LABELS.map((label) => ({ label, state: "done" }));
-    steps.push({ label: status === "DECOMMISSIONING" ? "Deleting" : "Deleted", state: status === "DECOMMISSIONING" ? "current" : "done" });
-    return steps;
-  }
-
-  const current = STEPS.indexOf(status);
-  return STEP_LABELS.map((label, index) => {
-    if (index < current) return { label, state: "done" };
-    // "Ready" is the end of the line, so it shows as done rather than "in progress".
-    if (index === current) return { label, state: status === "COMPLETED" ? "done" : "current" };
-    return { label, state: "todo" };
-  });
-}
+const EXTEND_DAYS = 30;
 
 export function RequestDetailPage() {
   const params = useParams();
   const requestId = params.id;
-  const { confirm, toast } = useFeedback();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [request, setRequest] = useState<ServerRequest | null>(null);
   const [error, setError] = useState("");
-  const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [outputTab, setOutputTab] = useState<"terraform" | "log" | null>(null);
   const [reloadCounter, setReloadCounter] = useState(0);
 
   useEffect(() => {
@@ -88,167 +47,216 @@ export function RequestDetailPage() {
     return () => window.clearTimeout(timer);
   }, [requestId, reloadCounter]);
 
-  async function call(path: string, body: unknown, doneText: string) {
-    setActionError("");
+  async function runAction(path: string, body: unknown, done: string) {
     setBusy(true);
     try {
       await api("/requests/" + requestId + "/" + path, "POST", body);
-      toast(doneText);
-      setReloadCounter((n) => n + 1);
+      toast.success(done);
+      setReloadCounter(reloadCounter + 1);
     } catch (err) {
-      setActionError((err as Error).message);
+      toast.error((err as Error).message);
     }
     setBusy(false);
   }
 
-  async function extendLease() {
-    if (!request) return;
-    const ok = await confirm({
-      title: "Extend the lease by 30 days?",
-      message: request.expiresAt ? (
-        <p>
-          <strong>{request.hostname}</strong> now expires on {new Date(request.expiresAt).toLocaleDateString()}. It will expire 30 days later.
-        </p>
-      ) : undefined,
-      confirmLabel: "Extend lease",
+  async function retry() {
+    if (!request) {
+      return;
+    }
+    const answer = await confirm({
+      title: "Retry " + request.hostname + "?",
+      message: "The failed step runs again.",
+      confirmLabel: "Retry",
     });
-    if (ok) {
-      await call("extend", { days: 30 }, "Lease extended by 30 days");
+    if (answer !== null) {
+      await runAction("retry", undefined, "Retry started.");
     }
   }
 
-  async function retry() {
-    if (!request) return;
-    const ok = await confirm({
-      title: "Retry creating this server?",
-      message: <p>The portal runs Terraform again for <strong>{request.hostname}</strong> with the same settings.</p>,
-      confirmLabel: "Retry",
+  async function extendLease() {
+    if (!request || !request.expiresAt) {
+      return;
+    }
+    // The API counts from the current expiry, or from now if it has already passed.
+    const expiry = new Date(request.expiresAt).getTime();
+    const start = Math.max(expiry, Date.now());
+    const newExpiry = new Date(start + EXTEND_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+    const answer = await confirm({
+      title: "Extend the lease by " + EXTEND_DAYS + " days?",
+      details: [
+        { label: "Server", value: request.hostname },
+        { label: "Expires now", value: formatDateTime(request.expiresAt) },
+        { label: "New expiry", value: formatDateTime(newExpiry) },
+      ],
+      confirmLabel: "Extend lease",
     });
-    if (ok) {
-      await call("retry", undefined, "Retrying " + request.hostname);
+    if (answer !== null) {
+      await runAction("extend", { days: EXTEND_DAYS }, "Lease extended.");
     }
   }
 
   async function decommission() {
-    if (!request) return;
-    const ok = await confirm({
-      title: "Delete this server?",
-      message: (
-        <>
-          <p>
-            Terraform destroys <strong>{request.hostname}</strong> and everything on it. Its quota is given back to the team.
-          </p>
-          <p className="muted">This cannot be undone. Type the hostname to confirm.</p>
-        </>
-      ),
-      input: { label: "Hostname", placeholder: request.hostname, mustMatch: request.hostname },
-      confirmLabel: "Delete server",
+    if (!request) {
+      return;
+    }
+    const answer = await confirm({
+      title: "Decommission " + request.hostname + "?",
+      message: "The server and everything on it are deleted. This cannot be undone.",
+      warning: request.environment === "PROD" ? "This is a production server." : undefined,
+      confirmLabel: "Decommission",
       danger: true,
+      typeToConfirm: request.hostname,
     });
-    if (ok) {
-      await call("decommission", undefined, request.hostname + " is being deleted");
+    if (answer !== null) {
+      await runAction("decommission", undefined, request.hostname + " is being decommissioned.");
     }
   }
 
-  async function copyTerraform() {
-    if (!request?.terraformCode) return;
+  async function copyOutput(text: string) {
     try {
-      await navigator.clipboard.writeText(request.terraformCode);
-      toast("main.tf copied to the clipboard", "info");
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied.");
     } catch {
-      toast("Could not copy. Select the text and copy it by hand.", "error");
+      toast.error("Could not copy. Select the text and copy it by hand.");
     }
   }
 
   if (error) {
     return (
-      <div>
-        <p>
-          <Link to="/requests" className="back-link">← Back to requests</Link>
-        </p>
-        <div className="error">{error}</div>
-      </div>
+      <EmptyState icon="alert" title="Could not open this request" text={error}>
+        <Link className="button secondary" to="/requests">
+          Back to requests
+        </Link>
+      </EmptyState>
     );
   }
   if (!request) {
-    return <Loading />;
+    return <Skeleton rows={4} />;
   }
 
-  const steps = buildSteps(request);
+  // Which step of the progress line are we on?
+  let currentStep = STEPS.indexOf(request.status);
+  // A server that is being deleted, or was deleted, gets one more step after "Ready".
+  let stepLabels = STEP_LABELS;
+  if (request.status === "DECOMMISSIONING" || request.status === "DECOMMISSIONED") {
+    const lastLabel = request.status === "DECOMMISSIONING" ? "Deleting" : "Deleted";
+    stepLabels = [...STEP_LABELS, lastLabel];
+    currentStep = stepLabels.length - 1;
+  }
+
   const canRetry = request.status === "FAILED";
   const canDecommission = request.status === "COMPLETED" || request.status === "FAILED";
   const canExtend = request.status === "COMPLETED" && request.expiresAt !== null;
+  const working = isInProgress(request.status);
 
   let leaseText = "No expiry";
-  if (request.expiresAt) {
-    leaseText = "Expires " + new Date(request.expiresAt).toLocaleString();
+  if (request.status === "DECOMMISSIONED" || request.status === "REJECTED") {
+    leaseText = "-";
+  } else if (request.expiresAt) {
+    leaseText = "Expires " + formatDateTime(request.expiresAt);
   } else if (request.leaseDays) {
     leaseText = request.leaseDays + " days, starts when the server is ready";
   }
 
+  // A failed request opens on the log, because that is what you need to read.
+  const hasLog = request.provisionLog !== null && request.provisionLog !== "";
+  const hasTerraform = request.terraformCode !== null;
+  let tab = outputTab;
+  if (tab === null) {
+    tab = (request.status === "FAILED" || working) && hasLog ? "log" : "terraform";
+  }
+  if (tab === "log" && !hasLog) {
+    tab = "terraform";
+  }
+  const output = tab === "log" ? request.provisionLog : request.terraformCode;
+
   return (
     <div>
-      <p>
-        <Link to="/requests" className="back-link">← Back to requests</Link>
-      </p>
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link to="/requests">Requests</Link> <span aria-hidden="true">/</span> <span>{request.hostname}</span>
+      </nav>
 
-      <div className="detail-header">
-        <div>
-          <div className="detail-title">
-            <h1>{request.hostname}</h1>
-            <StatusBadge status={request.status} />
-          </div>
-          <p className="muted detail-meta">
-            #{request.id} · {request.catalogItem.name} · <PlatformTag platform={request.platform} /> <EnvTag env={request.environment} /> ·
-            requested by {request.requester.name} {timeAgo(request.createdAt)}
-          </p>
-        </div>
-        <div className="page-actions">
-          {canRetry && (
-            <button onClick={retry} disabled={busy}>
-              Retry
-            </button>
-          )}
-          {canExtend && (
-            <button className="secondary" onClick={extendLease} disabled={busy}>
-              Extend lease
-            </button>
-          )}
-          {canDecommission && (
-            <button className="danger-outline" onClick={decommission} disabled={busy}>
-              Delete server
-            </button>
-          )}
-        </div>
+      <PageHeader
+        title={request.hostname}
+        subtitle={
+          <>
+            #{request.id} · {request.catalogItem.name} · {formatPlatform(request.platform)}
+          </>
+        }
+        actions={
+          <>
+            {canRetry && (
+              <button disabled={busy} onClick={retry}>
+                Retry
+              </button>
+            )}
+            {canExtend && (
+              <button className="secondary" disabled={busy} onClick={extendLease}>
+                Extend lease
+              </button>
+            )}
+            {canDecommission && (
+              <button className="secondary-danger" disabled={busy} onClick={decommission}>
+                Decommission
+              </button>
+            )}
+          </>
+        }
+      />
+
+      <div className="status-line">
+        <StatusBadge status={request.status} />
+        <span className={"tag env-" + request.environment.toLowerCase()}>{request.environment}</span>
+        {working && (
+          <span className="live muted small">
+            <span className="live-dot" /> Updating live
+          </span>
+        )}
       </div>
 
-      <ol className="steps">
-        {steps.map((step, index) => (
-          <li className={"step step-" + step.state} key={step.label}>
-            <span className="step-dot" aria-hidden="true">
-              {step.state === "done" ? "✓" : step.state === "failed" ? "✕" : index + 1}
-            </span>
-            <span className="step-label">{step.label}</span>
-          </li>
-        ))}
-      </ol>
+      {currentStep >= 0 && (
+        <ol className="steps">
+          {stepLabels.map((label, index) => {
+            let className = "step";
+            if (index < currentStep) className = "step done";
+            if (index === currentStep) className = "step current";
+            return (
+              <li className={className} key={label} aria-current={index === currentStep ? "step" : undefined}>
+                <span className="step-dot">{index < currentStep ? <Icon name="check" size={13} /> : index + 1}</span>
+                <span>{label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
 
+      {request.status === "PENDING_APPROVAL" && (
+        <div className="notice notice-info">
+          Waiting for {request.environment === "PROD" ? "an admin" : "the team lead"} to approve this request.
+        </div>
+      )}
+      {request.status === "REJECTED" && (
+        <div className="notice notice-error">
+          <strong>Rejected{request.approver ? " by " + request.approver.name : ""}.</strong>
+          {request.approvalComment && " " + request.approvalComment}
+        </div>
+      )}
       {request.errorMessage && request.status === "FAILED" && (
-        <div className="error">
-          <strong>What went wrong:</strong> {request.errorMessage}
+        <div className="notice notice-error">
+          <strong>This request failed.</strong> {request.errorMessage}
         </div>
       )}
-      {request.status === "REJECTED" && request.approvalComment && (
-        <div className="error">
-          <strong>Rejected by {request.approver?.name}:</strong> {request.approvalComment}
+      {request.status === "COMPLETED" && request.expiresAt && expiresSoon(request.expiresAt) && (
+        <div className="notice notice-warn">
+          This server is deleted automatically on {formatDateTime(request.expiresAt)}. Extend the lease to keep it.
         </div>
       )}
-      {actionError && <div className="error">{actionError}</div>}
 
       <div className="detail-grid">
-        <div className="card">
+        <section className="card">
           <h3>Details</h3>
-          <dl>
+          <dl className="details">
             <dt>Size</dt>
             <dd>
               {request.cpu} CPU · {formatMemory(request.memoryMb)} RAM · {request.diskGb} GB disk
@@ -257,56 +265,62 @@ export function RequestDetailPage() {
             <dd>{request.catalogItem.osName}</dd>
             <dt>Team</dt>
             <dd>{request.team.name}</dd>
+            <dt>Requested by</dt>
+            <dd>{request.requester.name}</dd>
             <dt>Reason</dt>
             <dd>{request.justification}</dd>
             <dt>Approver</dt>
             <dd>
-              {request.approver ? request.approver.name : <span className="muted">Not decided yet</span>}
+              {request.approver ? request.approver.name : "-"}
               {request.approvalComment && request.status !== "REJECTED" ? ' ("' + request.approvalComment + '")' : ""}
             </dd>
             <dt>Lease</dt>
             <dd>{leaseText}</dd>
-            <dt>Server id</dt>
-            <dd>{request.externalId ? <code>{request.externalId}</code> : <span className="muted">-</span>}</dd>
+            <dt>Server ID</dt>
+            <dd>{request.externalId || "-"}</dd>
             <dt>AWX job</dt>
-            <dd>{request.configJobId ? <code>{request.configJobId}</code> : <span className="muted">-</span>}</dd>
+            <dd>{request.configJobId || "-"}</dd>
           </dl>
-        </div>
+        </section>
 
-        <div className="card">
+        <section className="card">
           <h3>Timeline</h3>
           <ul className="timeline">
             {(request.auditEvents || []).map((event) => (
-              <li key={event.id} className={event.toStatus === "FAILED" || event.toStatus === "REJECTED" ? "bad" : ""}>
-                <div>{event.message}</div>
-                <div className="muted small" title={new Date(event.createdAt).toLocaleString()}>
-                  {event.actor ? event.actor.name : "System"} · {new Date(event.createdAt).toLocaleTimeString()}
+              <li key={event.id}>
+                <div className="muted small">
+                  {formatDateTime(event.createdAt)} · {event.actor ? event.actor.name : "System"}
                 </div>
+                <div>{event.message}</div>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       </div>
 
-      {request.terraformCode && (
-        <details className="card code-card">
-          <summary>
-            Generated Terraform <code>main.tf</code>
-          </summary>
-          <div className="code-actions">
-            <button className="secondary small-button" onClick={copyTerraform}>
-              Copy
-            </button>
+      {(hasTerraform || hasLog) && (
+        <section className="card output">
+          <div className="output-head">
+            <div className="tabs" role="tablist">
+              {hasTerraform && (
+                <button role="tab" aria-selected={tab === "terraform"} onClick={() => setOutputTab("terraform")}>
+                  Terraform
+                </button>
+              )}
+              {hasLog && (
+                <button role="tab" aria-selected={tab === "log"} onClick={() => setOutputTab("log")}>
+                  Provisioning log
+                </button>
+              )}
+            </div>
+            {output && (
+              <button className="secondary small-button" onClick={() => copyOutput(output)}>
+                <Icon name="copy" size={15} /> Copy
+              </button>
+            )}
           </div>
-          <pre>{request.terraformCode}</pre>
-        </details>
-      )}
-
-      {request.provisionLog && (
-        <details className="card code-card">
-          <summary>Provisioning log</summary>
-          <pre>{request.provisionLog}</pre>
-        </details>
+          <pre tabIndex={0}>{output}</pre>
+        </section>
       )}
     </div>
   );

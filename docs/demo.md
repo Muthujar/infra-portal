@@ -12,7 +12,7 @@ Today a developer who needs a server raises a ticket, waits for the DevOps team,
 
 ![Login](screenshots/01-login.png)
 
-Three demo users show the three roles (RBAC): developer, team lead and DevOps admin. Click **Developer** under "or try a demo user".
+Three demo users show the three roles (RBAC): developer, team lead and DevOps admin. Click **Developer** under "Try a demo user".
 
 ## 2. Browse the service catalog
 
@@ -25,8 +25,8 @@ Three demo users show the three roles (RBAC): developer, team lead and DevOps ad
 
 ![Request form](screenshots/03-request-form.png)
 
-Click **Request this server** on *Small Linux Server*, enter hostname `billing-api-01`, choose **DEV**, keep the **30 day lease**, and give a reason. Click **Review and submit**: a confirm box shows a summary and who will approve it.
-The form checks the hostname as you type. The API validates it again, checks that it is not already in use, and checks the team quota.
+Click **Request server** on *Small Linux Server*, enter hostname `billing-api-01`, choose **DEV**, keep the **30 day lease**, and give a reason. Click **Review and submit**: a confirm box shows a summary and who will approve it.
+The form checks the hostname when you leave the field. The API validates it again, checks that it is not already in use, and checks the team quota.
 
 ![Pending](screenshots/04-request-pending.png)
 
@@ -40,7 +40,7 @@ Request two *Database Servers*. The second one is blocked before it reaches anyo
 
 ![Approvals](screenshots/06-approvals.png)
 
-Log out and click **Team lead**, then open **Approvals** (the badge shows how many requests are waiting).
+Log out and click **Team lead**, then open **Approvals** (the sidebar badge shows how many requests are waiting).
 
 - The lead sees only their team's DEV/QA requests.
 - PROD requests are **not** shown to the lead, because production needs an admin.
@@ -57,9 +57,9 @@ Open the request. The progress bar and timeline update every 2 seconds:
 
 ![Completed](screenshots/08-completed.png)
 
-- **Generated Terraform (main.tf):** the exact code used to create the server. It contains no secrets.
+- **Terraform tab:** the exact code used to create the server. It contains no secrets.
 - **Timeline:** the audit trail, showing who did what and when.
-- **Provisioning log:** the Terraform and AWX output.
+- **Provisioning log tab:** the Terraform and AWX output.
 
 With `PROVISIONER=local` and Proxmox running, the container now also appears in the Proxmox web UI.
 
@@ -67,7 +67,7 @@ With `PROVISIONER=local` and Proxmox running, the container now also appears in 
 
 ![Failed](screenshots/09-failed.png)
 
-A request whose hostname contains `fail` simulates a Terraform error in mock mode. The request shows **Failed**, the error message and the log, with **Retry** and **Delete server** buttons. Failed requests release their quota.
+A request whose hostname contains `fail` simulates a Terraform error in mock mode. The request shows **Failed**, the error message and the log, with **Retry** and **Decommission** buttons. Failed requests release their quota.
 
 ## 8. Admin view
 
@@ -83,7 +83,7 @@ Log in as **DevOps admin**:
 
 ## 9. Decommission
 
-On a ready server, click **Delete server**. Because this cannot be undone, you type the hostname to confirm. The worker runs `terraform destroy`, the status becomes **Deleted** and the quota is released.
+On a ready server, click **Decommission**. Because this cannot be undone, you type the hostname to confirm. The worker runs `terraform destroy`, the status becomes **Deleted** and the quota is released.
 
 ## 10. Leases
 

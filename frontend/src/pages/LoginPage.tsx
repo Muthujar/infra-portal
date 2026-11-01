@@ -3,15 +3,21 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../api";
-import { Logo } from "../components/Layout";
+import { Icon } from "../components/Icon";
 
 // Demo users created by the seed script, so testers can log in with one click.
 const DEMO_USERS = [
-  { email: "dev@demo.local", label: "Developer", note: "Requests servers", initials: "DV" },
-  { email: "lead@demo.local", label: "Team lead", note: "Approves DEV and QA", initials: "TL" },
-  { email: "admin@demo.local", label: "DevOps admin", note: "Quotas, catalog, PROD", initials: "AD" },
+  { email: "dev@demo.local", label: "Developer", hint: "Requests servers" },
+  { email: "lead@demo.local", label: "Team lead", hint: "Approves DEV and QA" },
+  { email: "admin@demo.local", label: "DevOps admin", hint: "Approves PROD, manages quotas" },
 ];
 const DEMO_PASSWORD = "Password@123";
+
+const FEATURES = [
+  "Pick a server from the catalog",
+  "Your team lead approves it",
+  "Terraform creates it automatically",
+];
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -24,6 +30,7 @@ export function LoginPage() {
 
   // Ask the API whether company (LDAP) login is switched on, to show a hint.
   useEffect(() => {
+    document.title = "Log in · Infra Portal";
     api<{ ldap: boolean }>("/auth/options")
       .then((options) => setLdapOn(options.ldap))
       .catch(() => setLdapOn(false));
@@ -48,46 +55,66 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <section className="login-hero">
-        <div className="login-brand">
-          <Logo />
-          <span>Infra Portal</span>
+      <section className="login-intro">
+        <div className="brand">
+          <span className="brand-mark">
+            <Icon name="server" size={18} />
+          </span>
+          Infra Portal
         </div>
-        <h2>Servers on Proxmox and AWS, without the ticket queue.</h2>
-        <ul>
-          <li>Pick a server from the catalog</li>
-          <li>Your team lead approves it</li>
-          <li>Terraform creates it, AWX sets it up</li>
-          <li>Quotas, leases and a full audit trail</li>
-        </ul>
+        <div>
+          <h1>Servers on Proxmox and AWS, without the tickets.</h1>
+          <ul>
+            {FEATURES.map((feature) => (
+              <li key={feature}>
+                <Icon name="checkCircle" /> {feature}
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
-      <section className="login-side">
-        <form className="login-card" onSubmit={handleSubmit}>
-          <h1>Sign in</h1>
-          <p className="muted">Use your work email and password.</p>
+      <section className="login-main">
+        <form className="login-form" onSubmit={handleSubmit}>
+          <h2>Log in</h2>
+          <p className="muted">Use your portal or company account.</p>
 
           <label>
             Email
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" placeholder="you@company.com" required />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              autoComplete="username"
+              required
+            />
           </label>
           <label>
             Password
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" required />
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              autoComplete="current-password"
+              required
+            />
           </label>
 
-          {ldapOn && <p className="info">Company login is on: use your company email and password.</p>}
-
-          {error && <div className="error">{error}</div>}
+          {ldapOn && <div className="notice notice-info">Company login is on: use your company email and password.</div>}
+          {error && (
+            <div className="notice notice-error" role="alert">
+              {error}
+            </div>
+          )}
 
           <button type="submit" className="block" disabled={busy}>
-            {busy ? "Signing in..." : "Sign in"}
+            {busy ? "Logging in..." : "Log in"}
           </button>
 
-          <div className="divider">
-            <span>or try a demo user</span>
-          </div>
           <div className="demo-users">
+            <p className="muted small">
+              Try a demo user (password <code>{DEMO_PASSWORD}</code>)
+            </p>
             {DEMO_USERS.map((demo) => (
               <button
                 type="button"
@@ -96,19 +123,13 @@ export function LoginPage() {
                 disabled={busy}
                 onClick={() => doLogin(demo.email, DEMO_PASSWORD)}
               >
-                <span className="avatar" aria-hidden="true">
-                  {demo.initials}
-                </span>
-                <span className="demo-text">
+                <span>
                   <strong>{demo.label}</strong>
-                  <span className="muted small">{demo.note}</span>
+                  <span className="muted small">{demo.hint}</span>
                 </span>
-                <span className="demo-arrow" aria-hidden="true">
-                  →
-                </span>
+                <Icon name="arrowRight" size={16} />
               </button>
             ))}
-            <p className="muted small">All demo users use the password {DEMO_PASSWORD}.</p>
           </div>
         </form>
       </section>

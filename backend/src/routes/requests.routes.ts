@@ -401,7 +401,7 @@ requestsRouter.post(
     });
     await writeAudit({
       action: "LEASE_EXTENDED",
-      message: "Lease extended by " + input.days + " days by " + user.name + ", now expires " + newExpiry.toISOString(),
+      message: "Lease extended by " + input.days + " days by " + user.name + ", now expires " + newExpiry.toISOString().slice(0, 10),
       requestId: request.id,
       actorId: user.id,
     });

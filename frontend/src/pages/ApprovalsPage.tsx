@@ -3,16 +3,28 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import { useFeedback } from "../components/Feedback";
-import { EmptyState, EnvTag, Loading, PageHeader, PlatformTag } from "../components/Ui";
-import { formatMemory, timeAgo } from "../format";
+import { useConfirm } from "../components/ConfirmDialog";
+import { APPROVALS_CHANGED } from "../components/Layout";
+import { EmptyState, PageHeader, Skeleton } from "../components/Page";
+import { useToast } from "../components/Toast";
+import { formatDateTime, formatMemory, formatPlatform } from "../format";
 import type { ServerRequest } from "../types";
 
+function sizeText(request: ServerRequest): string {
+  return request.cpu + " CPU · " + formatMemory(request.memoryMb) + " RAM · " + request.diskGb + " GB disk";
+}
+
+function leaseText(request: ServerRequest): string {
+  return request.leaseDays ? request.leaseDays + " days" : "No expiry";
+}
+
 export function ApprovalsPage() {
-  const { confirm, toast } = useFeedback();
-  const [pending, setPending] = useState<ServerRequest[] | null>(null);
-  const [error, setError] = useState("");
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [pending, setPending] = useState<ServerRequest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [error, setError] = useState("");
 
   async function load() {
     try {
@@ -20,117 +32,108 @@ export function ApprovalsPage() {
       setPending(data);
     } catch (err) {
       setError((err as Error).message);
-      setPending([]);
     }
+    setLoading(false);
   }
 
   useEffect(() => {
     load();
   }, []);
 
-  function summary(request: ServerRequest) {
-    return (
-      <p>
-        <strong>{request.hostname}</strong> for {request.requester.name}: {request.catalogItem.name},{" "}
-        {request.cpu} CPU, {formatMemory(request.memoryMb)} RAM, {request.diskGb} GB disk in <EnvTag env={request.environment} />
-      </p>
-    );
-  }
-
-  async function approve(request: ServerRequest) {
-    const result = await confirm({
-      title: "Approve this request?",
-      message: (
-        <>
-          {summary(request)}
-          <p className="muted">The server is created right away and counts against team {request.team.name}'s quota.</p>
-        </>
-      ),
-      input: { label: "Comment", placeholder: "e.g. OK for the billing sprint" },
-      confirmLabel: "Approve and create",
+  async function decide(request: ServerRequest, decision: "approve" | "reject") {
+    const approving = decision === "approve";
+    const answer = await confirm({
+      title: (approving ? "Approve " : "Reject ") + request.hostname + "?",
+      message: approving
+        ? "The server is created straight away."
+        : request.requester.name + " will see your reason.",
+      details: [
+        { label: "Requested by", value: request.requester.name },
+        { label: "Environment", value: request.environment },
+        { label: "Size", value: sizeText(request) },
+        { label: "Lease", value: leaseText(request) },
+      ],
+      warning: approving && request.environment === "PROD" ? "This is a production server." : undefined,
+      confirmLabel: approving ? "Approve" : "Reject request",
+      danger: !approving,
+      input: approving
+        ? { label: "Comment (optional)" }
+        : { label: "Reason", placeholder: "Why is this request rejected?", minLength: 3 },
     });
-    if (!result) {
+    if (answer === null) {
       return;
     }
-    await send(request, "approve", result.text);
-  }
 
-  async function reject(request: ServerRequest) {
-    const result = await confirm({
-      title: "Reject this request?",
-      message: summary(request),
-      input: { label: "Reason (shown to the requester)", placeholder: "e.g. Please use the shared QA server", required: true },
-      confirmLabel: "Reject request",
-      danger: true,
-    });
-    if (!result) {
-      return;
-    }
-    await send(request, "reject", result.text);
-  }
-
-  async function send(request: ServerRequest, decision: "approve" | "reject", comment: string) {
-    setError("");
     setBusyId(request.id);
     try {
-      await api("/requests/" + request.id + "/" + decision, "POST", { comment: comment || undefined });
-      toast(decision === "approve" ? request.hostname + " approved. The server is being created." : request.hostname + " rejected.");
+      await api("/requests/" + request.id + "/" + decision, "POST", { comment: answer || undefined });
+      if (approving) {
+        toast.success(request.hostname + " approved. The server is being created.");
+      } else {
+        toast.success(request.hostname + " rejected.");
+      }
       await load();
+      window.dispatchEvent(new Event(APPROVALS_CHANGED));
     } catch (err) {
-      setError((err as Error).message);
+      toast.error((err as Error).message);
     }
     setBusyId(null);
   }
 
+  let subtitle = "Team leads approve DEV and QA requests of their team. Production requests need an admin.";
+  if (pending.length > 0) {
+    subtitle = pending.length + (pending.length === 1 ? " request is" : " requests are") + " waiting for you. " + subtitle;
+  }
+
   return (
     <div>
-      <PageHeader
-        title="Approvals"
-        subtitle="Team leads approve DEV and QA requests of their team. Production requests need an admin."
-      />
-      {error && <div className="error">{error}</div>}
-      {pending === null && <Loading />}
-      {pending !== null && pending.length === 0 && (
-        <EmptyState icon="✅" title="All caught up">
-          Nothing is waiting for your approval.
-        </EmptyState>
+      <PageHeader title="Approvals" subtitle={subtitle} />
+      {error && <div className="notice notice-error">{error}</div>}
+      {loading && <Skeleton rows={2} />}
+      {!loading && pending.length === 0 && !error && (
+        <EmptyState icon="checkCircle" title="You're all caught up" text="Nothing is waiting for your approval." />
       )}
 
-      <div className="approval-list">
-        {(pending || []).map((request) => (
-          <div className="card approval" key={request.id}>
-            <div className="approval-main">
-              <div className="approval-title">
-                <Link to={"/requests/" + request.id} className="row-title">
-                  {request.hostname}
-                </Link>
-                <span className="muted small">#{request.id}</span>
-                <EnvTag env={request.environment} />
-                <PlatformTag platform={request.platform} />
-              </div>
-              <p className="approval-who">
-                <strong>{request.requester.name}</strong> asked for a <strong>{request.catalogItem.name}</strong>{" "}
-                <span className="muted">· {timeAgo(request.createdAt)}</span>
+      {pending.map((request) => (
+        <article className="card approval" key={request.id}>
+          <div className="approval-head">
+            <div>
+              <h3>
+                <Link to={"/requests/" + request.id}>{request.hostname}</Link>
+              </h3>
+              <p className="muted small">
+                #{request.id} · {request.requester.name} · {formatDateTime(request.createdAt)}
               </p>
-              <div className="chips">
-                <span className="chip">{request.cpu} CPU</span>
-                <span className="chip">{formatMemory(request.memoryMb)} RAM</span>
-                <span className="chip">{request.diskGb} GB disk</span>
-                <span className="chip">Lease {request.leaseDays ? request.leaseDays + " days" : "none"}</span>
-              </div>
-              <blockquote className="reason">{request.justification}</blockquote>
             </div>
-            <div className="approval-actions">
-              <button onClick={() => approve(request)} disabled={busyId === request.id}>
-                Approve
-              </button>
-              <button className="danger-outline" onClick={() => reject(request)} disabled={busyId === request.id}>
-                Reject
-              </button>
-            </div>
+            <span className={"tag env-" + request.environment.toLowerCase()}>{request.environment}</span>
           </div>
-        ))}
-      </div>
+          <dl className="approval-facts">
+            <div>
+              <dt>Server</dt>
+              <dd>
+                {request.catalogItem.name} ({formatPlatform(request.platform)})
+              </dd>
+            </div>
+            <div>
+              <dt>Size</dt>
+              <dd>{sizeText(request)}</dd>
+            </div>
+            <div>
+              <dt>Lease</dt>
+              <dd>{leaseText(request)}</dd>
+            </div>
+          </dl>
+          <blockquote>{request.justification}</blockquote>
+          <div className="approval-actions">
+            <button className="secondary-danger" disabled={busyId !== null} onClick={() => decide(request, "reject")}>
+              Reject
+            </button>
+            <button disabled={busyId !== null} onClick={() => decide(request, "approve")}>
+              Approve
+            </button>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }

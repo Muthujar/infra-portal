@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { Layout } from "./components/Layout";
+import { Skeleton } from "./components/Page";
 import { LoginPage } from "./pages/LoginPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { RequestsPage } from "./pages/RequestsPage";
@@ -16,7 +17,11 @@ function ProtectedRoute({ children, roles }: { children: ReactNode; roles?: Role
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="page-loading"><span className="spinner" /> Loading...</div>;
+    return (
+      <div className="page-loading">
+        <Skeleton />
+      </div>
+    );
   }
   if (!user) {
     return <Navigate to="/login" replace />;
