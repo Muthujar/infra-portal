@@ -122,6 +122,18 @@ async function checkGitLab() {
   }
   ok("project '" + project.data.path_with_namespace + "' found");
 
+  // The portal starts each pipeline with the variables REQUEST_ID and TF_ACTION.
+  // New GitLab projects refuse pipeline variables by default ("no_one_allowed").
+  const variablesRole = project.data.ci_pipeline_variables_minimum_override_role;
+  if (variablesRole === "no_one_allowed") {
+    fail(
+      "the project does not allow pipeline variables",
+      "Settings > CI/CD > Variables > 'Minimum role to use pipeline variables': choose Maintainer"
+    );
+  } else {
+    ok("pipeline variables are allowed");
+  }
+
   const ciFile = await getJson(
     base + "/repository/files/.gitlab-ci.yml?ref=" + encodeURIComponent(config.gitlab.branch),
     headers
@@ -149,7 +161,8 @@ async function checkGitLab() {
     fail("cannot read CI/CD variables (HTTP " + variables.status + ")", "the token needs the Maintainer or Owner role on the project");
   }
 
-  const runners = await getJson(base + "/runners", headers);
+  // Only this project's own runners (the shared gitlab.com runners would fill the first pages).
+  const runners = await getJson(base + "/runners?type=project_type&per_page=100", headers);
   if (runners.status !== 200) {
     fail("cannot list runners (HTTP " + runners.status + ")", "the token needs the Maintainer or Owner role on the project");
     return;

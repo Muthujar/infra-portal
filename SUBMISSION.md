@@ -59,7 +59,7 @@ The container got an IP from the network, and it carries the tags and the note t
 |---|---|
 | Portal, workflow, approvals, RBAC, quotas, audit, leases | Implemented and tested |
 | Terraform on Proxmox (`PROVISIONER=local`) | Real, verified (above) |
-| GitLab CI pipeline (`PROVISIONER=gitlab`) | Implemented and tested against a fake GitLab API; setup guide in `docs/setup-gitlab.md` |
+| GitLab CI pipeline (`PROVISIONER=gitlab`) | Tested against gitlab.com: the portal commits the generated `main.tf` to a GitLab project through the API and starts the pipeline, and a self-hosted runner (tag `infra-portal`) is registered and online. The pipeline run itself was blocked by gitlab.com's account identity verification for new free accounts (card check), so Terraform via GitLab was not run end to end. Setup guide: `docs/setup-gitlab.md` |
 | AWS EC2 | Terraform is generated and validated; apply is off by default (`AWS_APPLY_ENABLED`) to avoid cloud cost |
 | AWX configuration | Real connector implemented (`CONFIGURATOR=awx`); mocked in the demo because AWX needs a Kubernetes cluster. A real rollout also needs a Proxmox dynamic inventory in AWX, since containers get their IP from DHCP |
 | LDAP login | Implemented and tested against a real OpenLDAP directory in CI; off by default, switch on with `LDAP_URL` ([docs/ldap.md](docs/ldap.md)) |

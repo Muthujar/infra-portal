@@ -73,8 +73,12 @@ export function RequestDetailPage() {
 
   // Which step of the progress line are we on?
   let currentStep = STEPS.indexOf(request.status);
+  // A server that is being deleted, or was deleted, gets one more step after "Ready".
+  let stepLabels = STEP_LABELS;
   if (request.status === "DECOMMISSIONING" || request.status === "DECOMMISSIONED") {
-    currentStep = STEPS.length - 1;
+    const lastLabel = request.status === "DECOMMISSIONING" ? "Deleting" : "Deleted";
+    stepLabels = [...STEP_LABELS, lastLabel];
+    currentStep = stepLabels.length - 1;
   }
 
   const canRetry = request.status === "FAILED";
@@ -102,7 +106,7 @@ export function RequestDetailPage() {
 
       {currentStep >= 0 && (
         <ol className="steps">
-          {STEP_LABELS.map((label, index) => {
+          {stepLabels.map((label, index) => {
             let className = "step";
             if (index < currentStep) className = "step done";
             if (index === currentStep) className = "step current";
