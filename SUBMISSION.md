@@ -41,4 +41,24 @@ The app starts in mock mode, so it runs on any machine. See the README for switc
 - Retry failed requests, decommission servers
 - Server leases with automatic decommission and extension
 - Admin: edit quotas, enable or disable catalog items, read the audit log
-- 34 automated tests and a 4-job GitHub Actions pipeline (tests, lint, `terraform validate`, Docker smoke test)
+- 36 automated tests and a 4-job GitHub Actions pipeline (tests, lint, `terraform validate`, Docker smoke test)
+
+## Verified on real Proxmox
+
+On 2026-11-01 the portal ran with `PROVISIONER=local` against Proxmox VE 9.2 (in VirtualBox on a Windows PC).
+A request for a *Small Linux Server* in DEV was approved and Terraform created LXC container 100 in about 40 seconds.
+The container got an IP from the network, and it carries the tags and the note the portal sets
+(`dev`, `infra-portal`, `team-payments`, "Request #3 by dev@demo.local"). Decommission deleted it again.
+
+![Container created by the portal in Proxmox](docs/screenshots/13-proxmox-real.png)
+
+## Scope: what is real, mocked or left out
+
+| Part | Status |
+|---|---|
+| Portal, workflow, approvals, RBAC, quotas, audit, leases | Implemented and tested |
+| Terraform on Proxmox (`PROVISIONER=local`) | Real, verified (above) |
+| GitLab CI pipeline (`PROVISIONER=gitlab`) | Implemented and tested against a fake GitLab API; setup guide in `docs/setup-gitlab.md` |
+| AWS EC2 | Terraform is generated and validated; apply is off by default (`AWS_APPLY_ENABLED`) to avoid cloud cost |
+| AWX configuration | Real connector implemented (`CONFIGURATOR=awx`); mocked in the demo because AWX needs a Kubernetes cluster. A real rollout also needs a Proxmox dynamic inventory in AWX, since containers get their IP from DHCP |
+| SAML / LDAP | Not implemented; login is local users with JWT. Next step: Keycloak or Active Directory, mapping directory groups to the three roles |

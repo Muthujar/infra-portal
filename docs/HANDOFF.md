@@ -16,7 +16,7 @@ Done and tested end to end in a browser (mock mode):
 - React UI: login, catalog, request form, requests list, request detail (live), approvals, admin
 - README, architecture diagrams (Mermaid), demo guide, screenshots
 
-Verified separately: the local Terraform runner calls the real `terraform` binary, and templates pass `terraform fmt`. A full `terraform apply` against Proxmox has **not** been run yet. It needs Muthu's Proxmox VM.
+Verified separately: the local Terraform runner calls the real `terraform` binary, and templates pass `terraform fmt`. A full `terraform apply` against real Proxmox VE 9.2 was verified on 2026-11-01 (see SUBMISSION.md).
 
 Added later on 2026-10-30:
 - Lease / expiry: the request form asks for 7, 30 or 90 days (or no expiry); the worker decommissions expired servers every minute; owners can extend by 30 days
@@ -27,7 +27,6 @@ Added later on 2026-10-30:
 - Submission package: SUBMISSION.md, rendered diagrams in docs/diagrams/, refreshed screenshots, 11-slide docs/Infra-Portal-Presentation.pdf
 
 Not yet done:
-- Install Proxmox in VirtualBox on Muthu's Windows laptop (32 GB RAM) and test `PROVISIONER=local` for real (README section "Using real Proxmox")
 - Optional: deploy to Muthu's Hostinger VPS (8 GB) as a live URL in mock mode
 - Optional: SAML/LDAP via Keycloak
 - Send the submission email to Vignesh with the repo link
