@@ -80,7 +80,7 @@ export async function provision(requestId: number) {
     let message = "Server is ready";
     if (request.leaseDays) {
       expiresAt = addDays(new Date(), request.leaseDays);
-      message = message + ", lease ends " + expiresAt.toISOString();
+      message = message + ", lease ends " + expiresAt.toISOString().slice(0, 10);
     }
     await changeStatus({
       requestId: requestId,
