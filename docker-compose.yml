@@ -66,6 +66,19 @@ services:
       api:
         condition: service_healthy
 
+  # Optional demo company directory for LDAP login. Starts only with:  docker compose --profile ldap up -d
+  # Users and groups: ldap/bootstrap.ldif. Guide: docs/ldap.md
+  ldap:
+    image: osixia/openldap:1.5.0
+    profiles: ["ldap"]
+    environment:
+      LDAP_ORGANISATION: Corp
+      LDAP_DOMAIN: corp.local
+      LDAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-portal.ldif:ro
+    command: --copy-service
+
 volumes:
   pgdata:
   terraform-runs:

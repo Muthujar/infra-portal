@@ -40,9 +40,21 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm run typecheck
+      - name: Start the demo LDAP directory
+        run: |
+          docker run -d --name ldap -p 3389:389 -e LDAP_ORGANISATION=Corp -e LDAP_DOMAIN=corp.local -e LDAP_ADMIN_PASSWORD=admin \
+            -v ${{ github.workspace }}/ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-portal.ldif:ro \
+            osixia/openldap:1.5.0 --copy-service
+          for i in $(seq 1 30); do
+            docker exec ldap ldapsearch -x -H ldap://localhost -b dc=corp,dc=local -D cn=admin,dc=corp,dc=local -w admin "(uid=ravi)" >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs ldap
+          exit 1
       - run: npm test
         env:
           TEST_DATABASE_URL: postgresql://portal:portal@localhost:5432/infra_portal_test
+          LDAP_TEST_URL: ldap://localhost:3389
       - run: npm run build
 
   frontend:

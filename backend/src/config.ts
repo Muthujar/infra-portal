@@ -65,6 +65,21 @@ export const config = {
     pollIntervalMs: readNumber("GITLAB_POLL_INTERVAL_MS", 5000),
   },
 
+  // Optional company login. Empty LDAP_URL = only the portal's own users can log in.
+  ldap: {
+    url: readString("LDAP_URL", ""),
+    bindDn: readString("LDAP_BIND_DN", ""),
+    bindPassword: readString("LDAP_BIND_PASSWORD", ""),
+    userBase: readString("LDAP_USER_BASE", ""),
+    groupBase: readString("LDAP_GROUP_BASE", ""),
+    // Group names (cn) that give each portal role
+    adminGroup: readString("LDAP_ADMIN_GROUP", "portal-admins"),
+    approverGroup: readString("LDAP_APPROVER_GROUP", "portal-approvers"),
+    requesterGroup: readString("LDAP_REQUESTER_GROUP", "portal-requesters"),
+    // A group named <prefix><team> puts the person in that portal team, e.g. team-payments -> Payments
+    teamGroupPrefix: readString("LDAP_TEAM_GROUP_PREFIX", "team-"),
+  },
+
   awx: {
     url: readString("AWX_URL", ""),
     token: readString("AWX_TOKEN", ""),
