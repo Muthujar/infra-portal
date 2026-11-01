@@ -24,7 +24,9 @@ in Part 3. Time needed: about 30 minutes. Everything below is free on gitlab.com
 
 ## 1. Create the GitLab project
 
-1. Sign in to https://gitlab.com (create a free account if needed).
+1. Sign in to https://gitlab.com (create a free account if needed). New gitlab.com accounts must complete
+   **identity verification** (phone, sometimes a card check) before any pipeline can run, even on your own runner.
+   Do it now from the "Verify my account" prompt, or pipelines fail with "Identity verification is required".
 2. **New project > Create blank project**. Name: `infra-portal-infra`. Visibility: Private.
    Keep **Initialize repository with a README** ticked, so the `main` branch exists.
 3. In the project, click **+ > New file**, name it `.gitlab-ci.yml`, paste the contents of
@@ -103,6 +105,7 @@ template, project, `.gitlab-ci.yml`, CI/CD variables and an online runner with t
 | "Could not commit main.tf to GitLab (HTTP 401)" | The token is wrong or expired, or it lacks the `api` scope. |
 | "Could not commit main.tf to GitLab (HTTP 404)" | `GITLAB_PROJECT_ID` is wrong. Use the path shown in the project URL, e.g. `your-name/infra-portal-infra`. |
 | "Could not start GitLab pipeline (HTTP 400)" with "Insufficient permissions to set pipeline variables" | Set *Settings > CI/CD > Variables > Minimum role to use pipeline variables* to Maintainer, then click Retry on the request. |
+| "Could not start GitLab pipeline (HTTP 400)" with "Identity verification is required in order to run CI jobs" | Verify your gitlab.com account (step 1), then click Retry on the request. |
 | "Could not start GitLab pipeline (HTTP 400)" with "No stages / jobs" | `.gitlab-ci.yml` is missing on `main`, or it is not the version from this repo. |
 | Pipeline stays **pending** | No online runner has the `infra-portal` tag. Check the runner in *Settings > CI/CD > Runners* and `docker compose -f gitlab/runner/docker-compose.yml logs`. |
 | Job fails at `terraform init` | The runner needs internet access to registry.terraform.io and gitlab.com. |
