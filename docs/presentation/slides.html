@@ -137,8 +137,8 @@
 
 <section class="slide" data-n="9">
   <div class="bar"></div>
-  <span class="eyebrow">Scope</span>
-  <h2>What is real and what is not</h2>
+  <span class="eyebrow">Included</span>
+  <h2>What is built and tested</h2>
   <table>
     <thead><tr><th>Part</th><th>Status</th></tr></thead>
     <tbody>
@@ -146,32 +146,27 @@
       <tr><td>Terraform generation for Proxmox and AWS</td><td><span class="pill real">Done</span></td></tr>
       <tr><td>Provisioning on real Proxmox VE</td><td><span class="pill real">Tested</span></td></tr>
       <tr><td>LDAP login</td><td><span class="pill real">Tested</span></td></tr>
-      <tr><td>AWS EC2</td><td><span class="pill sim">Validated, not applied</span></td></tr>
-      <tr><td>GitLab CI</td><td><span class="pill sim">Commits tested, pipeline not run</span></td></tr>
-      <tr><td>AWX</td><td><span class="pill sim">Mocked in the demo</span></td></tr>
-      <tr><td>SAML</td><td><span class="pill sim">Not built</span></td></tr>
+      <tr><td>44 automated tests</td><td><span class="pill real">Passing</span></td></tr>
+      <tr><td>CI for the backend, frontend, Terraform and Docker</td><td><span class="pill real">Passing</span></td></tr>
     </tbody>
   </table>
 </section>
 
 <section class="slide" data-n="10">
   <div class="bar"></div>
-  <span class="eyebrow">Quality and next steps</span>
-  <h2>Tested on every push, ready to grow</h2>
-  <div class="cols">
-    <ul>
-      <li><b>44 automated tests</b></li>
-      <li>CI checks the backend, frontend, Terraform and Docker</li>
-      <li>A smoke test takes a request to Ready</li>
-    </ul>
-    <ul>
-      <li><b>Next steps</b></li>
-      <li>SAML single sign-on</li>
-      <li>Shared Terraform state</li>
-      <li>Secrets in a vault</li>
-      <li>Email or Slack notifications</li>
-    </ul>
-  </div>
+  <span class="eyebrow">If this moves forward</span>
+  <h2>How it would connect to a company environment</h2>
+  <table>
+    <thead><tr><th>Area</th><th>How it would be done</th></tr></thead>
+    <tbody>
+      <tr><td>GitLab CI</td><td>Point the built connector at the company GitLab, with a runner inside the network</td></tr>
+      <tr><td>AWX</td><td>Point the built connector at the company AWX, and add a dynamic inventory</td></tr>
+      <tr><td>AWS</td><td>Add a company AWS account and turn on apply</td></tr>
+      <tr><td>Company login</td><td>Connect the company directory or identity provider, and reuse the role mapping</td></tr>
+      <tr><td>State and secrets</td><td>Move Terraform state to shared storage, and secrets to a vault</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">The demo uses mock provisioning and configuration, so these need a full run in a company environment.</p>
 </section>
 
 </body>

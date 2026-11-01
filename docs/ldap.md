@@ -47,5 +47,3 @@ The demo users still work.
 Set the same values to your company's server and a read-only service account. Set `LDAP_ADMIN_GROUP`, `LDAP_APPROVER_GROUP`, `LDAP_REQUESTER_GROUP` and `LDAP_TEAM_GROUP_PREFIX` to your group names.
 
 Use `ldaps://` so passwords are encrypted. For Active Directory, you may need to adjust the search filters in `backend/src/services/ldap.service.ts`.
-
-**SAML** is the next step. It would replace the password form with the company login page and keep the same group-to-role mapping.
