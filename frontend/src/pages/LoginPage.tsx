@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { api } from "../api";
 
 // Demo users created by the seed script, so testers can log in with one click.
 const DEMO_USERS = [
@@ -18,6 +19,14 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ldapOn, setLdapOn] = useState(false);
+
+  // Ask the API whether company (LDAP) login is switched on, to show a hint.
+  useEffect(() => {
+    api<{ ldap: boolean }>("/auth/options")
+      .then((options) => setLdapOn(options.ldap))
+      .catch(() => setLdapOn(false));
+  }, []);
 
   async function doLogin(loginEmail: string, loginPassword: string) {
     setError("");
@@ -50,6 +59,8 @@ export function LoginPage() {
           Password
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
         </label>
+
+        {ldapOn && <p className="muted">Company login is on: use your company email and password.</p>}
 
         {error && <div className="error">{error}</div>}
 

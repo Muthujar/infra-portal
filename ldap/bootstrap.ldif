@@ -1,0 +1,76 @@
+# Demo company directory for the optional LDAP login (docker compose --profile ldap up).
+# Base DN dc=corp,dc=local is created by the container from LDAP_DOMAIN.
+# Passwords are plain text because this is a throwaway demo directory.
+
+dn: ou=people,dc=corp,dc=local
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=corp,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+# ---------- People ----------
+
+dn: uid=meera,ou=people,dc=corp,dc=local
+objectClass: inetOrgPerson
+uid: meera
+cn: Meera (Developer)
+sn: Meera
+mail: meera@corp.local
+userPassword: Password@123
+
+dn: uid=ravi,ou=people,dc=corp,dc=local
+objectClass: inetOrgPerson
+uid: ravi
+cn: Ravi (Team Lead)
+sn: Ravi
+mail: ravi@corp.local
+userPassword: Password@123
+
+dn: uid=sana,ou=people,dc=corp,dc=local
+objectClass: inetOrgPerson
+uid: sana
+cn: Sana (DevOps Admin)
+sn: Sana
+mail: sana@corp.local
+userPassword: Password@123
+
+# In the directory but in no portal group, so the portal refuses the login.
+dn: uid=guest,ou=people,dc=corp,dc=local
+objectClass: inetOrgPerson
+uid: guest
+cn: Guest User
+sn: Guest
+mail: guest@corp.local
+userPassword: Password@123
+
+# ---------- Role groups (which portal role a person gets) ----------
+
+dn: cn=portal-requesters,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: portal-requesters
+member: uid=meera,ou=people,dc=corp,dc=local
+
+dn: cn=portal-approvers,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: portal-approvers
+member: uid=ravi,ou=people,dc=corp,dc=local
+
+dn: cn=portal-admins,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: portal-admins
+member: uid=sana,ou=people,dc=corp,dc=local
+
+# ---------- Team groups (team-<name> must match a team in the portal) ----------
+
+dn: cn=team-payments,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: team-payments
+member: uid=meera,ou=people,dc=corp,dc=local
+member: uid=ravi,ou=people,dc=corp,dc=local
+
+dn: cn=team-platform,ou=groups,dc=corp,dc=local
+objectClass: groupOfNames
+cn: team-platform
+member: uid=sana,ou=people,dc=corp,dc=local

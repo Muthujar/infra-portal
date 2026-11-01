@@ -10,7 +10,7 @@ Repository: https://github.com/Muthujar/infra-portal
 | Setup instructions | [`README.md`](README.md) (quick start with Docker, local development, modes, tests). Windows + Proxmox in VirtualBox: [`docs/setup-windows-proxmox.md`](docs/setup-windows-proxmox.md). GitLab CI provisioning: [`docs/setup-gitlab.md`](docs/setup-gitlab.md) |
 | Demo document | [`docs/demo.md`](docs/demo.md) (step-by-step walkthrough with screenshots in [`docs/screenshots/`](docs/screenshots/)) |
 | Presentation | [`docs/Infra-Portal-Presentation.pdf`](docs/Infra-Portal-Presentation.pdf) (11 slides; source: [`docs/presentation/slides.html`](docs/presentation/slides.html)) |
-| Tests and CI | [`backend/tests/`](backend/tests/) (36 tests) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Tests and CI | [`backend/tests/`](backend/tests/) (44 tests) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 
 ## Run it in one command
 
@@ -31,6 +31,7 @@ The app starts in mock mode, so it runs on any machine. See the README for switc
 - Service catalog with request form (Proxmox LXC and AWS EC2 server types)
 - Approval workflow: approve or reject with a comment; production requests need an admin
 - Role-based access control: requester, approver, admin
+- Company login with LDAP (optional): roles and teams come from directory groups; demo directory included ([docs/ldap.md](docs/ldap.md))
 - Team quotas for CPU, RAM and disk, checked on request, approval and retry
 - Request state machine with a full audit trail
 - Terraform (HCL) generation from templates, shown on each request
@@ -41,7 +42,7 @@ The app starts in mock mode, so it runs on any machine. See the README for switc
 - Retry failed requests, decommission servers
 - Server leases with automatic decommission and extension
 - Admin: edit quotas, enable or disable catalog items, read the audit log
-- 36 automated tests and a 4-job GitHub Actions pipeline (tests, lint, `terraform validate`, Docker smoke test)
+- 44 automated tests and a 4-job GitHub Actions pipeline (tests, lint, `terraform validate`, Docker smoke test)
 
 ## Verified on real Proxmox
 
@@ -61,4 +62,5 @@ The container got an IP from the network, and it carries the tags and the note t
 | GitLab CI pipeline (`PROVISIONER=gitlab`) | Implemented and tested against a fake GitLab API; setup guide in `docs/setup-gitlab.md` |
 | AWS EC2 | Terraform is generated and validated; apply is off by default (`AWS_APPLY_ENABLED`) to avoid cloud cost |
 | AWX configuration | Real connector implemented (`CONFIGURATOR=awx`); mocked in the demo because AWX needs a Kubernetes cluster. A real rollout also needs a Proxmox dynamic inventory in AWX, since containers get their IP from DHCP |
-| SAML / LDAP | Not implemented; login is local users with JWT. Next step: Keycloak or Active Directory, mapping directory groups to the three roles |
+| LDAP login | Implemented and tested against a real OpenLDAP directory in CI; off by default, switch on with `LDAP_URL` ([docs/ldap.md](docs/ldap.md)) |
+| SAML single sign-on | Not implemented. Next step: Keycloak or Entra ID with the same group-to-role mapping |

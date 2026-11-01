@@ -45,6 +45,7 @@ See [docs/architecture.md](docs/architecture.md) for the architecture diagram an
 | [docs/Infra-Portal-Presentation.pdf](docs/Infra-Portal-Presentation.pdf) | 11-slide presentation |
 | [docs/setup-windows-proxmox.md](docs/setup-windows-proxmox.md) | Windows setup with Proxmox VE in VirtualBox |
 | [docs/setup-gitlab.md](docs/setup-gitlab.md) | Provisioning through a GitLab CI pipeline, with a runner on your laptop |
+| [docs/ldap.md](docs/ldap.md) | Company login with LDAP: roles and teams from directory groups, with a demo directory |
 
 ## Repository layout
 
@@ -129,6 +130,8 @@ Set these in `backend/.env` and restart the API and worker.
 | `CONFIGURATOR` | `mock` (default) | Simulates an AWX job. |
 | | `awx` | Launches a real AWX job template and waits for it (see `ansible/configure-server.yml`). |
 | `AWS_APPLY_ENABLED` | `false` (default) | AWS requests run `terraform validate` only, so there is no cloud cost. |
+| `LDAP_URL` | empty (default) | Only the portal's own (demo) users can log in. |
+| | `ldap://...` | Company login: people log in with their directory account and their groups give role and team. Guide: [docs/ldap.md](docs/ldap.md). |
 | `LEASE_CHECK_INTERVAL_MS` | `60000` (default) | How often the worker looks for servers whose lease has ended. |
 
 ## Using real Proxmox (PROVISIONER=local)
@@ -212,7 +215,7 @@ All endpoints are under `/api` and need `Authorization: Bearer <token>` except l
 
 ## Next steps for production
 
-- Single sign-on with SAML / LDAP (for example Keycloak or Active Directory), mapping directory groups to roles
+- Single sign-on with SAML (for example Keycloak or Entra ID). LDAP login is already implemented (docs/ldap.md)
 - Remote Terraform state (GitLab or S3) instead of local folders
 - Secrets in a vault (HashiCorp Vault, AWS Secrets Manager)
 - Notifications (email, Slack) on approval and completion

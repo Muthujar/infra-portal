@@ -134,6 +134,7 @@ sequenceDiagram
 | PROD requests need an admin | `checkCanApprove` |
 | Team quota is checked on request, on approval and on retry | `assertQuotaAvailable` |
 | Passwords are stored as bcrypt hashes | `seed.ts`, `auth.routes.ts` |
+| With LDAP on, company users are checked against the directory and get role and team from their groups; the portal never stores their password | `ldap.service.ts`, `auth.routes.ts` ([ldap.md](ldap.md)) |
 | Proxmox / AWS secrets never go into `main.tf` or the database; they are passed to Terraform as `TF_VAR_*` environment variables | `terraform/runner.ts` |
 | All input is validated (hostname format, sizes, comments) | Zod schemas in each route |
 
